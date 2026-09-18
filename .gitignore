@@ -1,0 +1,35 @@
+# Go / Wails
+build/bin/
+*.exe
+*.syso
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Generated Wails bindings
+frontend/wailsjs/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Local runtime data
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary working files; keep the directory itself
+temp/*
+!temp/.gitkeep
