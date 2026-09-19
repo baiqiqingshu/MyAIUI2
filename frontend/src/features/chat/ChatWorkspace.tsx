@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactElement } from 'react'
-import { PlugZap } from 'lucide-react'
+import { GitBranch, PlugZap } from 'lucide-react'
 import { Button, EmptyState } from '../../components/ui'
 import { useUiStore } from '../../app/uiStore'
 import { copyToClipboard, useChatStore } from './chatStore'
 import { MessageList } from './MessageList'
 import { TextComposer } from './TextComposer'
+import { BranchPanel } from '../branches/BranchPanel'
 import './chat.css'
 
 /* 单一对话工作台：顶栏（助手/话题）+ 消息列表 + 纯文本输入器。 */
@@ -21,9 +22,11 @@ export function ChatWorkspace(): ReactElement {
   const loading = useChatStore((s) => s.loading)
   const generating = useChatStore((s) => s.generating)
   const stream = useChatStore((s) => s.stream)
+  const tree = useChatStore((s) => s.tree)
   const setTopic = useChatStore((s) => s.setTopic)
   const send = useChatStore((s) => s.send)
   const regenerate = useChatStore((s) => s.regenerate)
+  const editAndResend = useChatStore((s) => s.editAndResend)
   const syncSearchDefault = useChatStore((s) => s.syncSearchDefault)
 
   const assistant = assistants.find((a) => a.ID === activeAssistantId)
@@ -31,6 +34,7 @@ export function ChatWorkspace(): ReactElement {
   const hasEnabledModel = models.some((m) => m.Enabled)
 
   const [draft, setDraft] = useState('')
+  const [branchOpen, setBranchOpen] = useState(false)
 
   useEffect(() => {
     setTopic(activeTopicId)
@@ -59,6 +63,20 @@ export function ChatWorkspace(): ReactElement {
             {topic?.Title || '未选择话题'}
           </div>
         </div>
+        <div className="chat-header__actions">
+          <Button
+            size="sm"
+            disabled={!activeTopicId}
+            title="查看并切换话题内的分支"
+            onClick={() => setBranchOpen(true)}
+          >
+            <span className="chat-header__action-icon">
+              <GitBranch size={13} />
+            </span>
+            <span>分支</span>
+            <span className="chat-header__badge">{tree?.Nodes.length ?? 0}</span>
+          </Button>
+        </div>
       </header>
 
       <MessageList
@@ -72,6 +90,8 @@ export function ChatWorkspace(): ReactElement {
         onRegenerate={(messageId) => {
           void regenerate(messageId)
         }}
+        onEdit={(messageId, text) => editAndResend(messageId, text)}
+        editDisabled={generating}
         empty={
           !activeTopicId ? (
             <EmptyState title="还没有话题" description="在左侧话题栏新建一个话题，然后开始对话。" />
@@ -117,6 +137,8 @@ export function ChatWorkspace(): ReactElement {
           })
         }}
       />
+
+      <BranchPanel open={branchOpen} onClose={() => setBranchOpen(false)} />
     </div>
   )
 }

@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
-import { lastUserText, type MessagePart } from '../../domain/message'
+import { messageText, type MessagePart } from '../../domain/message'
 import type {
   AssistantDTO,
   MessageDTO,
   ModelDTO,
   ProviderDTO,
+  TopicTreeDTO,
   TurnDTO,
 } from '../../domain/dto'
 import { runChat } from '../../lib/ai/chatEngine'
@@ -26,9 +27,18 @@ export interface StreamState {
   parts: MessagePart[]
 }
 
+/** 兄弟变体导航信息：同一父节点下的多个子节点互为兄弟。 */
+export interface SiblingNav {
+  count: number
+  index: number
+  onPrev: () => void
+  onNext: () => void
+}
+
 interface ChatState {
   topicId: string
   messages: MessageDTO[]
+  tree: TopicTreeDTO | null
   loading: boolean
   generating: boolean
   stream: StreamState | null
@@ -41,6 +51,17 @@ interface ChatState {
   send: (text: string) => Promise<boolean>
   stop: () => void
   regenerate: (assistantMessageId: string) => Promise<boolean>
+  /** 编辑用户消息并作为兄弟变体重新发送 */
+  editAndResend: (messageId: string, text: string) => Promise<boolean>
+  /** 切换同一父节点下的相邻版本（方向切换后下探到该变体的最深分支） */
+  switchSibling: (messageId: string, direction: 'prev' | 'next') => Promise<void>
+  /** 精确回退/前进到某个节点 */
+  switchActiveNode: (messageId: string) => Promise<void>
+  /** 按当前话题重新加载消息与消息树（切换节点、保存后使用） */
+  refresh: () => Promise<void>
+  /** 重新拉取消息树（失败静默：树只影响分支 UI） */
+  refreshTree: () => Promise<void>
+  siblingsFor: (messageId: string) => SiblingNav | null
 }
 
 // 运行序号 + 当前 AbortController：话题切换/新一轮生成都会让旧回调失效。
@@ -270,6 +291,9 @@ async function executeTurn(run: TurnRun) {
     .catch(() => {
       /* 标题刷新失败不影响对话 */
     })
+
+  // 一轮对话可能产生新分支（重新生成/编辑发送），同步消息树
+  void useChatStore.getState().refreshTree()
 }
 
 /** 发送/重新生成前的目标解析：助手必须绑定到启用服务中的启用模型。 */
@@ -309,9 +333,21 @@ async function loadMessages(topicId: string, runId: number) {
   }
 }
 
+/** 消息树只服务于分支 UI，取不到时静默降级（不显示兄弟导航）。 */
+async function loadTree(topicId: string, runId: number) {
+  try {
+    const tree = await appApi.GetTopicTree(topicId)
+    if (!isCurrentRun(runId, topicId)) return
+    useChatStore.setState({ tree })
+  } catch {
+    /* 静默：分支 UI 不是对话主链路 */
+  }
+}
+
 export const useChatStore = create<ChatState>()((set, get) => ({
   topicId: '',
   messages: [],
+  tree: null,
   loading: false,
   generating: false,
   stream: null,
@@ -323,8 +359,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     activeAbort?.abort()
     activeAbort = null
     runSeq += 1
-    set({ topicId, messages: [], stream: null, generating: false, loading: topicId !== '' })
-    if (topicId) void loadMessages(topicId, runSeq)
+    set({ topicId, messages: [], tree: null, stream: null, generating: false, loading: topicId !== '' })
+    if (topicId) {
+      void loadMessages(topicId, runSeq)
+      void loadTree(topicId, runSeq)
+    }
   },
 
   setSearchEnabled(enabled) {
@@ -343,6 +382,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const ui = useUiStore.getState()
     if (!topicId) {
       ui.showToast('请先新建话题', 'error')
+      return false
+    }
+    // 活动路径停在用户消息上（在历史节点回退所致）：直接续写会形成 (user,user) 畸形路径
+    const tail = get().messages[get().messages.length - 1]
+    if (tail && tail.Role === 'user') {
+      ui.showToast('当前停在用户消息上：请用它的「编辑并重新发送」，或在分支面板选择其它节点', 'info')
       return false
     }
     const target = resolveTarget()
@@ -405,6 +450,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     if (get().generating) return false
     const topicId = get().topicId
     if (!topicId) return false
+
+    // 重新生成 = 给该助手消息的父用户消息再建一个助手子节点，旧回答作为兄弟变体保留
+    const source = get().messages.find((m) => m.ID === assistantMessageId)
+    const parentMessageId = source?.ParentID ?? ''
+    if (!source || !parentMessageId) {
+      useUiStore.getState().showToast('无法确定要重新回答的问题', 'error')
+      return false
+    }
+
     const target = resolveTarget()
     if (!target) return false
 
@@ -414,28 +468,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     activeAbort = controller
     set({ generating: true })
 
-    // 先取历史（含待重生成的旧回答），从中剔除旧回答后再提问；历史取不到就不动数据库
-    let rawHistory: MessageDTO[]
+    let turn: TurnDTO
     try {
-      rawHistory = await appApi.ListMessages(topicId, 0, HISTORY_LIMIT)
-    } catch (err) {
-      if (isCurrentRun(runId, topicId)) set({ generating: false })
-      useUiStore.getState().showToast(`重新生成失败：${describeError(err)}`, 'error')
-      return false
-    }
-    const history = rawHistory.filter((m) => m.ID !== assistantMessageId)
-    const userText = lastUserText(history)
-    if (!userText) {
-      if (isCurrentRun(runId, topicId)) set({ generating: false })
-      useUiStore.getState().showToast('找不到可重新生成的问题', 'error')
-      return false
-    }
-
-    let created: MessageDTO
-    try {
-      await appApi.DeleteMessage(assistantMessageId)
-      created = await appApi.StartAssistantMessage({
+      turn = await appApi.StartAssistantMessage({
         TopicID: topicId,
+        ParentMessageID: parentMessageId,
         ProviderID: target.provider.ID,
         ModelID: target.model.ID,
         ModelRemoteID: target.model.RemoteID,
@@ -451,25 +488,175 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
 
     if (!isCurrentRun(runId, topicId)) {
-      await finishCancelled(created.ID)
+      await finishCancelled(turn.AssistantMessage.ID)
       return true
     }
 
-    set((prev) => ({ messages: [...prev.messages.filter((m) => m.ID !== assistantMessageId), created] }))
+    set({ messages: [...turn.History, turn.UserMessage, turn.AssistantMessage] })
 
     void executeTurn({
       topicId,
       runId,
-      message: created,
-      assistant: target.assistant,
-      provider: target.provider,
-      model: target.model,
-      history,
-      userText,
+      message: turn.AssistantMessage,
+      assistant: turn.Assistant,
+      provider: turn.Provider,
+      model: turn.Model,
+      history: turn.History,
+      userText: messageText(turn.UserMessage),
       controller,
     })
 
     return true
+  },
+
+  async editAndResend(messageId, text) {
+    const trimmed = text.trim()
+    if (!trimmed || get().generating) return false
+    const topicId = get().topicId
+    const ui = useUiStore.getState()
+    if (!topicId) {
+      ui.showToast('请先新建话题', 'error')
+      return false
+    }
+    const target = resolveTarget()
+    if (!target) return false
+
+    runSeq += 1
+    const runId = runSeq
+    const controller = new AbortController()
+    activeAbort = controller
+    set({ generating: true })
+
+    let turn: TurnDTO
+    try {
+      turn = await appApi.EditAndResendUserMessage({
+        MessageID: messageId,
+        Text: trimmed,
+        ProviderID: target.provider.ID,
+        ModelID: target.model.ID,
+        ModelRemoteID: target.model.RemoteID,
+        ModelModality: target.model.Modality,
+      })
+    } catch (err) {
+      if (isCurrentRun(runId, topicId)) set({ generating: false })
+      useUiStore.getState().showToast(`编辑发送失败：${describeError(err)}`, 'error')
+      return false
+    }
+
+    if (!isCurrentRun(runId, topicId)) {
+      // 期间切换了话题：本轮占位消息直接按取消收尾
+      await finishCancelled(turn.AssistantMessage.ID)
+      return true
+    }
+
+    set({ messages: [...turn.History, turn.UserMessage, turn.AssistantMessage] })
+
+    void executeTurn({
+      topicId,
+      runId,
+      message: turn.AssistantMessage,
+      assistant: turn.Assistant,
+      provider: turn.Provider,
+      model: turn.Model,
+      history: turn.History,
+      userText: messageText(turn.UserMessage),
+      controller,
+    })
+
+    return true
+  },
+
+  async switchSibling(messageId, direction) {
+    if (get().generating) return
+    const topicId = get().topicId
+    const tree = get().tree
+    if (!topicId || !tree) return
+    const node = tree.Nodes.find((n) => n.ID === messageId)
+    if (!node) return
+    const siblings = tree.Nodes
+      .filter((n) => n.ParentID === node.ParentID)
+      .sort((a, b) => a.SiblingIndex - b.SiblingIndex)
+    const at = siblings.findIndex((n) => n.ID === messageId)
+    const next = direction === 'prev' ? at - 1 : at + 1
+    if (at < 0 || next < 0 || next >= siblings.length) {
+      useUiStore.getState().showToast('没有其它版本可切换', 'info')
+      return
+    }
+    try {
+      // 切换变体后由后端下探到该分支最深处，避免同一位置留下半截路径
+      await appApi.SwitchToBranch(topicId, siblings[next].ID)
+    } catch (err) {
+      useUiStore.getState().showToast(`切换分支失败：${describeError(err)}`, 'error')
+      return
+    }
+    await get().refresh()
+  },
+
+  async switchActiveNode(messageId) {
+    if (get().generating) return
+    const topicId = get().topicId
+    if (!topicId) return
+    try {
+      await appApi.SetActiveNode(topicId, messageId)
+    } catch (err) {
+      useUiStore.getState().showToast(`切换节点失败：${describeError(err)}`, 'error')
+      return
+    }
+    await get().refresh()
+  },
+
+  async refresh() {
+    const topicId = get().topicId
+    if (!topicId) {
+      set({ messages: [], tree: null, loading: false })
+      return
+    }
+    // 生成中不动消息列表：流式回调仍以现有数组为准，只同步树
+    if (get().generating) {
+      await get().refreshTree()
+      return
+    }
+    set({ loading: true })
+    await loadMessages(topicId, runSeq)
+    await get().refreshTree()
+  },
+
+  async refreshTree() {
+    const topicId = get().topicId
+    if (!topicId) {
+      set({ tree: null })
+      return
+    }
+    try {
+      const tree = await appApi.GetTopicTree(topicId)
+      if (get().topicId !== topicId) return
+      set({ tree })
+    } catch {
+      /* 静默：分支 UI 不是对话主链路 */
+    }
+  },
+
+  siblingsFor(messageId) {
+    const tree = get().tree
+    if (!tree) return null
+    const node = tree.Nodes.find((n) => n.ID === messageId)
+    if (!node) return null
+    const siblings = tree.Nodes
+      .filter((n) => n.ParentID === node.ParentID)
+      .sort((a, b) => a.SiblingIndex - b.SiblingIndex)
+    if (siblings.length <= 1) return null
+    const at = siblings.findIndex((n) => n.ID === messageId)
+    if (at < 0) return null
+    return {
+      count: siblings.length,
+      index: at + 1,
+      onPrev: () => {
+        void get().switchSibling(messageId, 'prev')
+      },
+      onNext: () => {
+        void get().switchSibling(messageId, 'next')
+      },
+    }
   },
 }))
 

@@ -26,6 +26,34 @@
 
 .chat-header__meta {
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.chat-header__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chat-header__action-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 分支节点数角标 */
+.chat-header__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-header__name {
@@ -161,6 +189,53 @@
 .chat-action:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* 兄弟变体导航：同一位置的其它版本 */
+.chat-msg__siblings {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: var(--space-2);
+  padding-right: var(--space-2);
+  border-right: 1px solid var(--border);
+}
+
+.chat-msg__siblings-count {
+  padding: 0 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-action--icon {
+  padding: 2px 3px;
+}
+
+/* 用户消息内联编辑 */
+.chat-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(560px, 70vw);
+}
+
+.chat-edit__input {
+  min-height: 60px;
+}
+
+.chat-edit__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.chat-edit__hint {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
 }
 
 /* reasoning 折叠区 */

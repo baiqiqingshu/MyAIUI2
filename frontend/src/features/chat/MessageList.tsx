@@ -3,7 +3,7 @@ import { parseParts } from '../../domain/message'
 import type { MessageDTO } from '../../domain/dto'
 import { Spinner } from '../../components/ui'
 import { MessageItem } from './MessageItem'
-import type { StreamState } from './chatStore'
+import { useChatStore, type StreamState } from './chatStore'
 
 export interface MessageListProps {
   messages: MessageDTO[]
@@ -12,6 +12,8 @@ export interface MessageListProps {
   canRegenerate: boolean
   onCopy: (text: string) => void
   onRegenerate: (messageId: string) => void
+  onEdit: (messageId: string, text: string) => Promise<boolean> | void
+  editDisabled: boolean
   empty: ReactNode
 }
 
@@ -22,18 +24,19 @@ export function MessageList({
   canRegenerate,
   onCopy,
   onRegenerate,
+  onEdit,
+  editDisabled,
   empty,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  // 兄弟变体信息来自消息树：无树或该位置只有一个版本时返回 null
+  const siblingsFor = useChatStore((s) => s.siblingsFor)
 
   // 新消息/流式增量到达时贴底
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, stream, loading])
-
-  const last = messages[messages.length - 1]
-  const regenerateId = last && last.Role === 'assistant' ? last.ID : ''
 
   return (
     <div className="chat-scroll scroll-area" ref={scrollRef}>
@@ -54,9 +57,12 @@ export function MessageList({
               message={message}
               parts={parts}
               streaming={isStreaming}
-              showRegenerate={canRegenerate && message.ID === regenerateId}
+              siblings={siblingsFor(message.ID)}
+              canRegenerate={canRegenerate && message.Role !== 'user'}
               onCopy={onCopy}
               onRegenerate={onRegenerate}
+              onEdit={onEdit}
+              editDisabled={editDisabled}
             />
           )
         })}
