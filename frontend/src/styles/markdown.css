@@ -184,6 +184,65 @@
   tab-size: 2;
 }
 
+/* 代码块容器：顶部语言栏 + 复制按钮，边框与圆角由容器统一负责 */
+.md-code {
+  margin: 1em 0;
+  background: var(--bg-code);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.md-code__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px 3px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-code) 72%, var(--bg-subtle));
+}
+
+.md-code__lang {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.md-code__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.md-code__copy:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.md-code__copy:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* 容器已提供边框/底色/圆角，内层 pre 只保留滚动与排版（也覆盖列表内的 .md li pre 边距） */
+.md .md-code__pre {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .md pre code {
   display: block;
   background: transparent;
@@ -192,6 +251,76 @@
   padding: 0;
   font-size: 1em;
   white-space: pre;
+}
+
+/* 语法高亮：类名来自 highlight.js（rehype-highlight），颜色统一走 tokens 的 --syntax-* */
+.md .hljs {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.md .hljs-comment,
+.md .hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.md .hljs-keyword,
+.md .hljs-selector-tag,
+.md .hljs-literal,
+.md .hljs-doctag,
+.md .hljs-meta .hljs-keyword {
+  color: var(--syntax-keyword);
+}
+
+.md .hljs-string,
+.md .hljs-regexp,
+.md .hljs-addition,
+.md .hljs-meta .hljs-string {
+  color: var(--syntax-string);
+}
+
+.md .hljs-number,
+.md .hljs-built_in,
+.md .hljs-symbol,
+.md .hljs-bullet,
+.md .hljs-link {
+  color: var(--syntax-number);
+}
+
+.md .hljs-title,
+.md .hljs-section,
+.md .hljs-name,
+.md .hljs-selector-id,
+.md .hljs-selector-class {
+  color: var(--syntax-function);
+}
+
+.md .hljs-attr,
+.md .hljs-attribute,
+.md .hljs-variable,
+.md .hljs-template-variable,
+.md .hljs-params,
+.md .hljs-property,
+.md .hljs-type {
+  color: var(--syntax-variable);
+}
+
+.md .hljs-meta,
+.md .hljs-tag {
+  color: var(--text-secondary);
+}
+
+.md .hljs-deletion {
+  color: var(--danger);
+}
+
+.md .hljs-emphasis {
+  font-style: italic;
+}
+
+.md .hljs-strong {
+  font-weight: 700;
 }
 
 .md table {
