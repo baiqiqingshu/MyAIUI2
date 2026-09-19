@@ -968,3 +968,60 @@ electron|ipcRenderer|preload
 6. SQLite + DPAPI；无备份、导入导出、遥测和自动更新。
 7. 严格纯文本输入；图片只作为模型输出。
 8. 第 3 天先交付可对话演示版，第 5～7 天完成全部 P0 与安全审计。
+
+## 24. 增量功能：会话内分支、复制为新会话、Markdown 导出（2026-09-19 追加）
+
+本节是 P0 交付后的增量需求，与第 2～23 节的 P0 描述冲突时以本节为准。
+
+### 24.1 需求与决策
+
+| 需求 | 决策 |
+| --- | --- |
+| 复制为新会话 | 把当前分支的完整消息路径复制成一个新话题（标题加「（副本）」），原话题不变；不保留分叉与分支归属。 |
+| 对话导出为 Markdown | 导出**当前分支**；同时提供「复制到剪贴板」与「另存为 .md 文件」两个出口。Markdown 文本始终由 Go 侧从数据库重新生成，前端不能提交任意文件内容。 |
+| 会话内分支与分支管理 | 采用**话题内消息树**（与上游 Cherry Studio `parentId` + `activeNodeId` 语义一致），不采用「分支出新话题」方案。 |
+
+**该功能修订第 2.1 节的文件隔离口径**：本应用新增且仅新增一个用户显式触发的文件写入点——「导出为 Markdown → 另存为 .md」。目标路径完全由用户在系统保存对话框中选择（Go 调 `runtime.SaveFileDialog`），前端只能提供经过清洗的建议文件名，不能指定目录；Go 不接受前端提交的文件正文。除此之外第 14.1 节的规则（无文件选择、无拖放、无粘贴文件、无路径型 DTO、Markdown 不渲染本地资源）保持不变。
+
+### 24.2 数据模型（schema v2）
+
+```sql
+-- topics 增加
+active_node_id TEXT NOT NULL DEFAULT ''      -- 当前活动分支末端消息 ID
+
+-- messages 增加
+parent_id TEXT NOT NULL DEFAULT ''           -- 同一话题内的父消息 ID，'' 表示根节点
+-- 并删除 UNIQUE(topic_id, sort_order)：分支下同序号的兄弟消息合法
+CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_order);
+```
+
+- **兄弟变体** = 同一父节点下的多个子节点（不再引入 siblings_group 概念，多模型并行回复不在本次范围）。
+- **活动路径** = 从 `topics.active_node_id` 沿 `parent_id` 上溯到根；消息列表、模型上下文、导出对象都只包含这条路径。
+- 迁移：`user_version 1 → 2` 重建 messages 表（去掉唯一约束）、按 `sort_order` 回填线性父链、把每条话题的 `active_node_id` 回填为末条消息；全新库直接按最新结构建表。
+
+### 24.3 行为定义
+
+1. **重新生成**：为同一用户消息新建一个助手兄弟节点并把活动分支切到新回答；旧回答保留为变体，消息上出现 `‹ n/m ›` 切换。
+2. **编辑并重新发送**（用户消息）：在该用户消息的父节点下新建用户兄弟节点 + 助手占位消息，并切换到新分支；生成内容的模型上下文为「该用户消息之前的路径」。
+3. **在历史节点上继续**：分支管理面板点选任意节点 = 精确回退到该节点（`SetActiveNode`），此后发送的消息成为它的子节点，形成新分支。
+4. **兄弟切换**（`‹ n/m ›` 按钮）：切换到该变体并下探到其最深分支（`SwitchToBranch`），展示该变体的完整延续。
+5. **复制为新会话**：复制当前分支路径到新话题；复制过程中 `pending`/`streaming` 状态归一为 `cancelled`，避免新话题出现永久「生成中」。
+6. **导出 Markdown**：标题、助手、导出时间、消息数 + 逐条消息（文本原样、思考过程用 `<details>`、联网引用为链接列表、生成图片输出占位说明、错误与中断状态以引用行标注）。
+7. 守卫：活动节点停在用户消息上时禁止直接发送（应使用该消息的「编辑并重新发送」或切换分支），避免生成 `user,user` 畸形路径；生成过程中禁止切换分支/节点。
+
+### 24.4 新增绑定
+
+`DuplicateTopic`、`ExportTopicMarkdown`、`SaveTopicMarkdown`、`SetActiveNode`、`SwitchToBranch`、`GetTopicTree`、`EditAndResendUserMessage`；`StartAssistantMessage` 增加 `ParentMessageID` 并把返回值改为 `TurnDTO`；`TopicDTO` 增加 `ActiveNodeID`/`HasBranches`，`MessageDTO` 增加 `ParentID`/`SiblingCount`/`SiblingIndex`。
+
+### 24.5 依赖增量（2026-09-19）
+
+- `rehype-highlight@7`（含 `lowlight@3` + `highlight.js@11`）：聊天代码块语法高亮。选型理由：同步执行（流式逐增量重渲染下不需要异步状态机）、纯离线（无 WASM/CDN，不改现有 CSP）、与既有 `react-markdown` 管线直接组合。未采用上游 Cherry 的 Shiki：异步渲染 + WASM/`new Function` 依赖 + 体积更大，且需要额外的流式高亮 worker，对原型不划算。
+- 代价：前端产物由 827KB 增至 996KB（gzip 约 +50KB）；只注册 highlight.js 默认 common 语言集，未知语言按纯文本输出（`ignoreMissing`）。
+- 高亮配色为本项目自制 token（`--syntax-*`，浅/深成对写入 `styles/tokens.css`），不引入第三方主题 CSS。
+
+### 24.6 本次不做（后续迭代）
+
+- 分支删除/裁剪（当前 `DeleteMessage` 不级联），分支重命名与分支标签。
+- 全部分支导出、导出为 JSON/HTML、导出含图片数据。
+- 多模型并行回复分组（siblings group）、消息编辑的模型内联改写。
+- 消息树分页（原型一次性返回整条活动分支与整棵树，上限 2000 条）。
