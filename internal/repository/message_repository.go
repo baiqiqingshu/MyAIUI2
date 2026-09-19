@@ -9,14 +9,14 @@ import (
 	"myaiui2/internal/database"
 )
 
-// defaultMessageLimit 分页未指定 limit 时取的条数。
-const defaultMessageLimit = 50
+// maxTopicMessages 单话题一次读取的消息上限：树模型下一次拿全量，避免分页把分支截断。
+const maxTopicMessages = 2000
 
-// Message 消息记录，parts_json 保存消息片段数组。
+// Message 消息记录，parts_json 保存消息片段数组；ParentID 为空表示该话题的根节点。
 type Message struct {
-	ID, TopicID, Role, Status, PartsJSON, ProviderID, ModelRemoteID string
-	SortOrder                                                       int
-	CreatedAt, UpdatedAt                                            int64
+	ID, TopicID, ParentID, Role, Status, PartsJSON, ProviderID, ModelRemoteID string
+	SortOrder                                                                 int
+	CreatedAt, UpdatedAt                                                      int64
 }
 
 // MessageRepo messages 表读写。
@@ -29,9 +29,12 @@ func NewMessageRepo(db *database.DB) *MessageRepo {
 	return &MessageRepo{db: db}
 }
 
+// messageColumns 是 messages 的统一查询列，顺序必须与 scanMessage 一致。
+const messageColumns = `id, topic_id, parent_id, role, status, parts_json, COALESCE(provider_id, ''), COALESCE(model_remote_id, ''), sort_order, created_at, updated_at`
+
 func scanMessage(s rowScanner) (Message, error) {
 	var m Message
-	if err := s.Scan(&m.ID, &m.TopicID, &m.Role, &m.Status, &m.PartsJSON, &m.ProviderID, &m.ModelRemoteID,
+	if err := s.Scan(&m.ID, &m.TopicID, &m.ParentID, &m.Role, &m.Status, &m.PartsJSON, &m.ProviderID, &m.ModelRemoteID,
 		&m.SortOrder, &m.CreatedAt, &m.UpdatedAt); err != nil {
 		return Message{}, err
 	}
@@ -53,15 +56,9 @@ func scanMessages(rows *sql.Rows) ([]Message, error) {
 	return list, nil
 }
 
-func reverseMessages(list []Message) {
-	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
-		list[i], list[j] = list[j], list[i]
-	}
-}
-
 // Get 按 id 读取消息。
 func (r *MessageRepo) Get(id string) (Message, error) {
-	row := r.db.SQL().QueryRowContext(context.Background(), `SELECT id, topic_id, role, status, parts_json, COALESCE(provider_id, ''), COALESCE(model_remote_id, ''), sort_order, created_at, updated_at FROM messages WHERE id = ?`, id)
+	row := r.db.SQL().QueryRowContext(context.Background(), `SELECT `+messageColumns+` FROM messages WHERE id = ?`, id)
 	m, err := scanMessage(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Message{}, ErrNotFound
@@ -74,8 +71,8 @@ func (r *MessageRepo) Get(id string) (Message, error) {
 
 // Create 新增消息。
 func (r *MessageRepo) Create(m Message) error {
-	_, err := r.db.SQL().ExecContext(context.Background(), `INSERT INTO messages (id, topic_id, role, status, parts_json, provider_id, model_remote_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.ID, m.TopicID, m.Role, m.Status, m.PartsJSON, nilIfEmpty(m.ProviderID), nilIfEmpty(m.ModelRemoteID),
+	_, err := r.db.SQL().ExecContext(context.Background(), `INSERT INTO messages (id, topic_id, parent_id, role, status, parts_json, provider_id, model_remote_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ID, m.TopicID, m.ParentID, m.Role, m.Status, m.PartsJSON, nilIfEmpty(m.ProviderID), nilIfEmpty(m.ModelRemoteID),
 		m.SortOrder, m.CreatedAt, m.UpdatedAt)
 	return err
 }
@@ -89,37 +86,14 @@ func (r *MessageRepo) NextSortOrder(topicID string) (int, error) {
 	return next, nil
 }
 
-// ListByTopic 返回升序消息：beforeOrder<=0 取最后 limit 条，否则取 sort_order 小于 beforeOrder 的最后 limit 条。
-func (r *MessageRepo) ListByTopic(topicID string, beforeOrder int, limit int) ([]Message, error) {
-	if limit <= 0 {
-		limit = defaultMessageLimit
-	}
-	ctx := context.Background()
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if beforeOrder > 0 {
-		rows, err = r.db.SQL().QueryContext(ctx, `SELECT id, topic_id, role, status, parts_json, COALESCE(provider_id, ''), COALESCE(model_remote_id, ''), sort_order, created_at, updated_at FROM messages WHERE topic_id = ? AND sort_order < ? ORDER BY sort_order DESC LIMIT ?`, topicID, beforeOrder, limit)
-	} else {
-		rows, err = r.db.SQL().QueryContext(ctx, `SELECT id, topic_id, role, status, parts_json, COALESCE(provider_id, ''), COALESCE(model_remote_id, ''), sort_order, created_at, updated_at FROM messages WHERE topic_id = ? ORDER BY sort_order DESC LIMIT ?`, topicID, limit)
-	}
+// ListByTopicAll 返回话题的整棵消息树（按 sort_order 升序，最多 maxTopicMessages 条）。
+func (r *MessageRepo) ListByTopicAll(topicID string) ([]Message, error) {
+	rows, err := r.db.SQL().QueryContext(context.Background(), `SELECT `+messageColumns+` FROM messages WHERE topic_id = ? ORDER BY sort_order ASC LIMIT ?`, topicID, maxTopicMessages)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
-	list, err := scanMessages(rows)
-	if err != nil {
-		return nil, err
-	}
-	reverseMessages(list)
-	return list, nil
-}
-
-// ListRecent 返回升序的最后 limit 条消息。
-func (r *MessageRepo) ListRecent(topicID string, limit int) ([]Message, error) {
-	return r.ListByTopic(topicID, 0, limit)
+	return scanMessages(rows)
 }
 
 // UpdateParts 流式快照：只更新 parts_json/status/updated_at。

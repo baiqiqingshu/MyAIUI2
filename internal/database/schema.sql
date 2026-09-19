@@ -1,4 +1,6 @@
 -- MyAIUI2 原创实现（表结构照抄实施方案 §9.2，一次性 schema，由 user_version 控制执行）。
+-- v2 起消息不再是线性列表：messages.parent_id 组成树，兄弟变体 = 同一父节点下的多个子节点，
+-- topics.active_node_id 记录当前活动分支的末端节点（详见 migration_v2.sql）。
 -- 注意：本文件由 execScript 按分号拆分执行，不要写触发器/存储过程等多语句块。
 
 CREATE TABLE providers (
@@ -47,6 +49,7 @@ CREATE TABLE topics (
   id TEXT PRIMARY KEY,
   assistant_id TEXT NOT NULL REFERENCES assistants(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
+  active_node_id TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -54,6 +57,7 @@ CREATE TABLE topics (
 CREATE TABLE messages (
   id TEXT PRIMARY KEY,
   topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  parent_id TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL,
   status TEXT NOT NULL,
   parts_json TEXT NOT NULL,
@@ -61,8 +65,7 @@ CREATE TABLE messages (
   model_remote_id TEXT,
   sort_order INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  UNIQUE(topic_id, sort_order)
+  updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE settings (
@@ -73,4 +76,5 @@ CREATE TABLE settings (
 
 CREATE INDEX idx_topics_assistant_updated ON topics(assistant_id, updated_at DESC);
 CREATE INDEX idx_messages_topic_order ON messages(topic_id, sort_order);
+CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_order);
 CREATE INDEX idx_models_provider_enabled ON models(provider_id, enabled);

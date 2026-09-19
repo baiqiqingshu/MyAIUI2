@@ -42,9 +42,9 @@ const (
 	defaultMaxResults     = 5
 	maxSearchResults      = 10
 
-	defaultMessageLimit = 50
-	maxMessageLimit     = 200
-	historyLimit        = 50
+	// 分支树节点摘要：过大的 parts_json（可能内嵌 base64 图片）直接放弃解析。
+	previewPartsBytes = 64 << 10
+	previewRuneLimit  = 60
 
 	testProviderTimeout = 10 * time.Second
 	syncModelsTimeout   = 30 * time.Second
@@ -982,13 +982,18 @@ func (a *AppAPI) listTopics(assistantID string) ([]TopicDTO, error) {
 	if err != nil {
 		return nil, wrapRepoErr("读取话题失败", "", err)
 	}
+	// 分支标记一次批量查出；统计失败只影响展示，按“无分支”降级。
+	branched, err := a.topics.HasBranchesByAssistant(assistantID)
+	if err != nil {
+		logging.Errorf("统计话题分支失败: %v", err)
+	}
 	out := make([]TopicDTO, 0, len(list))
 	for _, item := range list {
 		count, err := a.topics.CountMessages(item.ID)
 		if err != nil {
 			count = 0
 		}
-		out = append(out, toTopicDTO(item, count))
+		out = append(out, toTopicDTO(item, count, branched[item.ID]))
 	}
 	return out, nil
 }
@@ -1015,7 +1020,7 @@ func (a *AppAPI) CreateTopic(input CreateTopicDTO) (TopicDTO, error) {
 	if err != nil {
 		return TopicDTO{}, err
 	}
-	return toTopicDTO(topic, 0), nil
+	return toTopicDTO(topic, 0, false), nil
 }
 
 func (a *AppAPI) RenameTopic(id string, title string) error {
@@ -1053,6 +1058,8 @@ func (a *AppAPI) DeleteTopic(id string) error {
 
 // ---------------------------------------------------------------- messages
 
+// ListMessages 返回话题整条活动分支的 DTO。
+// beforeOrder/limit 是契约保留的分页参数：树模型下始终返回完整分支，二者不再生效。
 func (a *AppAPI) ListMessages(topicID string, beforeOrder int, limit int) ([]MessageDTO, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
@@ -1060,17 +1067,11 @@ func (a *AppAPI) ListMessages(topicID string, beforeOrder int, limit int) ([]Mes
 	if err := validateUUID("话题 ID", topicID); err != nil {
 		return nil, err
 	}
-	if limit <= 0 {
-		limit = defaultMessageLimit
-	}
-	if limit > maxMessageLimit {
-		limit = maxMessageLimit
-	}
-	list, err := a.messages.ListByTopic(strings.TrimSpace(topicID), beforeOrder, limit)
+	_, all, path, err := a.loadTopicPath(strings.TrimSpace(topicID))
 	if err != nil {
-		return nil, wrapRepoErr("读取消息失败", "", err)
+		return nil, err
 	}
-	return toMessageDTOs(list), nil
+	return pathMessageDTOs(path, all), nil
 }
 
 // StartTurn 落库用户消息与助手占位消息，并返回本轮上下文快照。
@@ -1081,9 +1082,9 @@ func (a *AppAPI) StartTurn(input StartTurnDTO) (TurnDTO, error) {
 	if err := validateUUID("话题 ID", input.TopicID); err != nil {
 		return TurnDTO{}, err
 	}
-	topic, err := a.topics.Get(strings.TrimSpace(input.TopicID))
+	topic, all, path, err := a.loadTopicPath(strings.TrimSpace(input.TopicID))
 	if err != nil {
-		return TurnDTO{}, wrapRepoErr("读取话题失败", "话题不存在", err)
+		return TurnDTO{}, err
 	}
 
 	userText := input.UserText
@@ -1093,39 +1094,18 @@ func (a *AppAPI) StartTurn(input StartTurnDTO) (TurnDTO, error) {
 	if err := validateTextLen("消息内容", userText, maxMessageLen); err != nil {
 		return TurnDTO{}, err
 	}
-	provider, err := a.providerByID(input.ProviderID)
+	target, err := a.resolveTurnTarget(input.ProviderID, input.ModelID, input.ModelRemoteID, input.ModelModality)
 	if err != nil {
 		return TurnDTO{}, err
-	}
-	model, err := a.modelByID(input.ModelID)
-	if err != nil {
-		return TurnDTO{}, err
-	}
-	providerID := strings.TrimSpace(input.ProviderID)
-	if providerID == "" {
-		providerID = model.ProviderID
-	}
-	remoteID := strings.TrimSpace(input.ModelRemoteID)
-	if remoteID == "" {
-		remoteID = model.RemoteID
-	}
-	if err := validateTextLen("远端模型 ID", remoteID, maxRemoteIDLen); err != nil {
-		return TurnDTO{}, err
-	}
-	modality := strings.TrimSpace(input.ModelModality)
-	if modality == "" {
-		modality = model.Modality
-	}
-	if modality != "" {
-		if err := validateEnum("模型类型", modality, modalities); err != nil {
-			return TurnDTO{}, err
-		}
 	}
 
-	history, err := a.recentHistory(topic.ID)
-	if err != nil {
-		return TurnDTO{}, err
+	// 新消息挂在当前活动分支末端：空话题从根开始，否则成为活动节点的子节点（继续追问即新分支）。
+	parentID := ""
+	if len(path) > 0 {
+		parentID = path[len(path)-1].ID
 	}
+	history := pathMessageDTOs(path, all)
+
 	order, err := a.messages.NextSortOrder(topic.ID)
 	if err != nil {
 		return TurnDTO{}, wrapRepoErr("读取消息顺序失败", "", err)
@@ -1134,11 +1114,12 @@ func (a *AppAPI) StartTurn(input StartTurnDTO) (TurnDTO, error) {
 	userMessage := repository.Message{
 		ID:            uuid.NewString(),
 		TopicID:       topic.ID,
+		ParentID:      parentID,
 		Role:          "user",
 		Status:        "done",
 		PartsJSON:     textPartsJSON(userText),
-		ProviderID:    providerID,
-		ModelRemoteID: remoteID,
+		ProviderID:    target.providerID,
+		ModelRemoteID: target.remoteID,
 		SortOrder:     order,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -1149,11 +1130,12 @@ func (a *AppAPI) StartTurn(input StartTurnDTO) (TurnDTO, error) {
 	assistantMessage := repository.Message{
 		ID:            uuid.NewString(),
 		TopicID:       topic.ID,
+		ParentID:      userMessage.ID,
 		Role:          "assistant",
 		Status:        "streaming",
 		PartsJSON:     "[]",
-		ProviderID:    providerID,
-		ModelRemoteID: remoteID,
+		ProviderID:    target.providerID,
+		ModelRemoteID: target.remoteID,
 		SortOrder:     order + 1,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -1164,6 +1146,10 @@ func (a *AppAPI) StartTurn(input StartTurnDTO) (TurnDTO, error) {
 			logging.Errorf("回滚用户消息失败: %v", delErr)
 		}
 		return TurnDTO{}, wrapRepoErr("创建助手消息失败", "", err)
+	}
+	// 活动节点只影响展示与后续上下文，写入失败不阻断本轮对话。
+	if err := a.topics.SetActiveNode(topic.ID, assistantMessage.ID, now); err != nil {
+		logging.Errorf("切换活动分支失败: %v", err)
 	}
 
 	if strings.TrimSpace(topic.Title) == "" || topic.Title == defaultTopicTitle {
@@ -1179,92 +1165,98 @@ func (a *AppAPI) StartTurn(input StartTurnDTO) (TurnDTO, error) {
 		logging.Errorf("更新话题时间失败: %v", err)
 	}
 	topic.UpdatedAt = now
+	topic.ActiveNodeID = assistantMessage.ID
 	count, err := a.topics.CountMessages(topic.ID)
 	if err != nil {
 		count = 0
 	}
+	combined := withMessages(all, userMessage, assistantMessage)
 
-	var assistant repository.Assistant
-	if topic.AssistantID != "" {
-		if found, err := a.assistants.Get(topic.AssistantID); err == nil {
-			assistant = found
-		}
-	}
 	return TurnDTO{
-		Topic:            toTopicDTO(topic, count),
-		UserMessage:      toMessageDTO(userMessage),
-		AssistantMessage: toMessageDTO(assistantMessage),
-		Assistant:        toAssistantDTO(assistant),
-		Model:            toModelDTO(model),
-		Provider:         a.toProviderDTO(provider),
+		Topic:            toTopicDTO(topic, count, branchesIn(combined)),
+		UserMessage:      siblingMessageDTO(combined, userMessage),
+		AssistantMessage: siblingMessageDTO(combined, assistantMessage),
+		Assistant:        toAssistantDTO(a.assistantOf(topic)),
+		Model:            toModelDTO(target.model),
+		Provider:         a.toProviderDTO(target.provider),
 		History:          history,
 	}, nil
 }
 
-// StartAssistantMessage 为“重新生成”插入新的助手占位消息。
-func (a *AppAPI) StartAssistantMessage(input StartAssistantMessageDTO) (MessageDTO, error) {
+// StartAssistantMessage 为指定用户消息创建新的助手回答（“重新生成”时旧回答保留为兄弟变体）。
+func (a *AppAPI) StartAssistantMessage(input StartAssistantMessageDTO) (TurnDTO, error) {
 	if err := a.ready(); err != nil {
-		return MessageDTO{}, err
+		return TurnDTO{}, err
 	}
 	if err := validateUUID("话题 ID", input.TopicID); err != nil {
-		return MessageDTO{}, err
+		return TurnDTO{}, err
 	}
-	topic, err := a.topics.Get(strings.TrimSpace(input.TopicID))
+	if err := validateUUID("父消息 ID", input.ParentMessageID); err != nil {
+		return TurnDTO{}, err
+	}
+	target, err := a.resolveTurnTarget(input.ProviderID, input.ModelID, input.ModelRemoteID, input.ModelModality)
 	if err != nil {
-		return MessageDTO{}, wrapRepoErr("读取话题失败", "话题不存在", err)
+		return TurnDTO{}, err
 	}
-	if _, err := a.providerByID(input.ProviderID); err != nil {
-		return MessageDTO{}, err
-	}
-	model, err := a.modelByID(input.ModelID)
+	topic, all, _, err := a.loadTopicPath(strings.TrimSpace(input.TopicID))
 	if err != nil {
-		return MessageDTO{}, err
+		return TurnDTO{}, err
 	}
-	providerID := strings.TrimSpace(input.ProviderID)
-	if providerID == "" {
-		providerID = model.ProviderID
+	parent := findMessage(all, strings.TrimSpace(input.ParentMessageID))
+	if parent.ID == "" || parent.Role != "user" {
+		return TurnDTO{}, errors.New("只能对用户消息生成回复")
 	}
-	remoteID := strings.TrimSpace(input.ModelRemoteID)
-	if remoteID == "" {
-		remoteID = model.RemoteID
+	// 上下文是该用户消息所在分支，且去掉这条用户消息本身。
+	branch := pathTo(all, parent.ID)
+	if len(branch) > 0 {
+		branch = branch[:len(branch)-1]
 	}
-	if err := validateTextLen("远端模型 ID", remoteID, maxRemoteIDLen); err != nil {
-		return MessageDTO{}, err
-	}
-	modality := strings.TrimSpace(input.ModelModality)
-	if modality == "" {
-		modality = model.Modality
-	}
-	if modality != "" {
-		if err := validateEnum("模型类型", modality, modalities); err != nil {
-			return MessageDTO{}, err
-		}
-	}
+	history := pathMessageDTOs(branch, all)
 
 	order, err := a.messages.NextSortOrder(topic.ID)
 	if err != nil {
-		return MessageDTO{}, wrapRepoErr("读取消息顺序失败", "", err)
+		return TurnDTO{}, wrapRepoErr("读取消息顺序失败", "", err)
 	}
 	now := nowMs()
 	message := repository.Message{
 		ID:            uuid.NewString(),
 		TopicID:       topic.ID,
+		ParentID:      parent.ID,
 		Role:          "assistant",
 		Status:        "streaming",
 		PartsJSON:     "[]",
-		ProviderID:    providerID,
-		ModelRemoteID: remoteID,
+		ProviderID:    target.providerID,
+		ModelRemoteID: target.remoteID,
 		SortOrder:     order,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
 	if err := a.messages.Create(message); err != nil {
-		return MessageDTO{}, wrapRepoErr("创建助手消息失败", "", err)
+		return TurnDTO{}, wrapRepoErr("创建助手消息失败", "", err)
+	}
+	if err := a.topics.SetActiveNode(topic.ID, message.ID, now); err != nil {
+		logging.Errorf("切换活动分支失败: %v", err)
 	}
 	if err := a.topics.Touch(topic.ID, now); err != nil {
 		logging.Errorf("更新话题时间失败: %v", err)
 	}
-	return toMessageDTO(message), nil
+	topic.UpdatedAt = now
+	topic.ActiveNodeID = message.ID
+	count, err := a.topics.CountMessages(topic.ID)
+	if err != nil {
+		count = 0
+	}
+	combined := withMessages(all, message)
+
+	return TurnDTO{
+		Topic:            toTopicDTO(topic, count, branchesIn(combined)),
+		UserMessage:      siblingMessageDTO(combined, parent),
+		AssistantMessage: siblingMessageDTO(combined, message),
+		Assistant:        toAssistantDTO(a.assistantOf(topic)),
+		Model:            toModelDTO(target.model),
+		Provider:         a.toProviderDTO(target.provider),
+		History:          history,
+	}, nil
 }
 
 // SaveTurnSnapshot 只更新流式过程中的 parts_json/status/updated_at。
@@ -1330,12 +1322,270 @@ func (a *AppAPI) DeleteMessage(id string) error {
 	return nil
 }
 
-func (a *AppAPI) recentHistory(topicID string) ([]MessageDTO, error) {
-	list, err := a.messages.ListRecent(topicID, historyLimit)
-	if err != nil {
-		return nil, wrapRepoErr("读取历史消息失败", "", err)
+// EditAndResendUserMessage 编辑当前分支上的用户消息：生成用户兄弟变体 + 助手占位，并切换到新分支。
+func (a *AppAPI) EditAndResendUserMessage(input EditMessageDTO) (TurnDTO, error) {
+	if err := a.ready(); err != nil {
+		return TurnDTO{}, err
 	}
-	return toMessageDTOs(list), nil
+	if err := validateUUID("消息 ID", input.MessageID); err != nil {
+		return TurnDTO{}, err
+	}
+	text := input.Text
+	if strings.TrimSpace(text) == "" {
+		return TurnDTO{}, errors.New("消息内容不能为空")
+	}
+	if err := validateTextLen("消息内容", text, maxMessageLen); err != nil {
+		return TurnDTO{}, err
+	}
+	target, err := a.resolveTurnTarget(input.ProviderID, input.ModelID, input.ModelRemoteID, input.ModelModality)
+	if err != nil {
+		return TurnDTO{}, err
+	}
+	original, err := a.messages.Get(strings.TrimSpace(input.MessageID))
+	if err != nil {
+		return TurnDTO{}, wrapRepoErr("读取消息失败", "消息不存在", err)
+	}
+	topic, all, path, err := a.loadTopicPath(original.TopicID)
+	if err != nil {
+		return TurnDTO{}, err
+	}
+	// 只允许编辑用户消息，且必须落在当前活动分支上。
+	if original.Role != "user" || findMessage(path, original.ID).ID == "" {
+		return TurnDTO{}, errors.New("只能编辑当前分支上的消息")
+	}
+	// 新变体的上下文是原消息父节点的分支（不含原消息本身）。
+	history := pathMessageDTOs(pathTo(all, original.ParentID), all)
+
+	order, err := a.messages.NextSortOrder(topic.ID)
+	if err != nil {
+		return TurnDTO{}, wrapRepoErr("读取消息顺序失败", "", err)
+	}
+	now := nowMs()
+	userMessage := repository.Message{
+		ID:            uuid.NewString(),
+		TopicID:       topic.ID,
+		ParentID:      original.ParentID,
+		Role:          "user",
+		Status:        "done",
+		PartsJSON:     textPartsJSON(text),
+		ProviderID:    target.providerID,
+		ModelRemoteID: target.remoteID,
+		SortOrder:     order,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := a.messages.Create(userMessage); err != nil {
+		return TurnDTO{}, wrapRepoErr("保存消息失败", "", err)
+	}
+	assistantMessage := repository.Message{
+		ID:            uuid.NewString(),
+		TopicID:       topic.ID,
+		ParentID:      userMessage.ID,
+		Role:          "assistant",
+		Status:        "streaming",
+		PartsJSON:     "[]",
+		ProviderID:    target.providerID,
+		ModelRemoteID: target.remoteID,
+		SortOrder:     order + 1,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := a.messages.Create(assistantMessage); err != nil {
+		// 占位失败时回滚用户变体，避免留下孤立的编辑分支。
+		if delErr := a.messages.Delete(userMessage.ID); delErr != nil {
+			logging.Errorf("回滚用户消息失败: %v", delErr)
+		}
+		return TurnDTO{}, wrapRepoErr("创建助手消息失败", "", err)
+	}
+	if err := a.topics.SetActiveNode(topic.ID, assistantMessage.ID, now); err != nil {
+		logging.Errorf("切换活动分支失败: %v", err)
+	}
+	if err := a.topics.Touch(topic.ID, now); err != nil {
+		logging.Errorf("更新话题时间失败: %v", err)
+	}
+	topic.UpdatedAt = now
+	topic.ActiveNodeID = assistantMessage.ID
+	count, err := a.topics.CountMessages(topic.ID)
+	if err != nil {
+		count = 0
+	}
+	combined := withMessages(all, userMessage, assistantMessage)
+
+	return TurnDTO{
+		Topic:            toTopicDTO(topic, count, branchesIn(combined)),
+		UserMessage:      siblingMessageDTO(combined, userMessage),
+		AssistantMessage: siblingMessageDTO(combined, assistantMessage),
+		Assistant:        toAssistantDTO(a.assistantOf(topic)),
+		Model:            toModelDTO(target.model),
+		Provider:         a.toProviderDTO(target.provider),
+		History:          history,
+	}, nil
+}
+
+// ---------------------------------------------------------------- 分支（消息树）
+
+// topicAndActivePath 返回话题与其活动分支路径（根 → 活动节点，按深度升序）。
+func (a *AppAPI) topicAndActivePath(topicID string) (repository.Topic, []repository.Message, error) {
+	topic, _, path, err := a.loadTopicPath(strings.TrimSpace(topicID))
+	return topic, path, err
+}
+
+// loadTopicPath 读取话题、该话题全部消息与活动分支路径；需要兄弟统计的调用方用这个版本。
+func (a *AppAPI) loadTopicPath(topicID string) (repository.Topic, []repository.Message, []repository.Message, error) {
+	topic, err := a.topics.Get(topicID)
+	if err != nil {
+		return repository.Topic{}, nil, nil, wrapRepoErr("读取话题失败", "话题不存在", err)
+	}
+	all, err := a.messages.ListByTopicAll(topic.ID)
+	if err != nil {
+		return repository.Topic{}, nil, nil, wrapRepoErr("读取消息失败", "", err)
+	}
+	return topic, all, activePath(topic, all), nil
+}
+
+// SetActiveNode 把话题的活动分支末端切到指定消息（消息必须属于该话题）。
+func (a *AppAPI) SetActiveNode(topicID string, messageID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if err := validateUUID("话题 ID", topicID); err != nil {
+		return err
+	}
+	if err := validateUUID("消息 ID", messageID); err != nil {
+		return err
+	}
+	topicID = strings.TrimSpace(topicID)
+	message, err := a.messages.Get(strings.TrimSpace(messageID))
+	if err != nil {
+		return wrapRepoErr("读取消息失败", "消息不存在", err)
+	}
+	if message.TopicID != topicID {
+		return errors.New("消息不属于该话题")
+	}
+	if err := a.topics.SetActiveNode(topicID, message.ID, nowMs()); err != nil {
+		return wrapRepoErr("切换活动分支失败", "话题不存在", err)
+	}
+	return nil
+}
+
+// SwitchToBranch 从指定消息沿「子节点中 sort_order 最大者」一路下探到叶子，
+// 使该变体连同它之后的完整延续一起成为活动分支。
+func (a *AppAPI) SwitchToBranch(topicID string, messageID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if err := validateUUID("话题 ID", topicID); err != nil {
+		return err
+	}
+	if err := validateUUID("消息 ID", messageID); err != nil {
+		return err
+	}
+	topicID = strings.TrimSpace(topicID)
+	message, err := a.messages.Get(strings.TrimSpace(messageID))
+	if err != nil {
+		return wrapRepoErr("读取消息失败", "消息不存在", err)
+	}
+	if message.TopicID != topicID {
+		return errors.New("消息不属于该话题")
+	}
+	all, err := a.messages.ListByTopicAll(topicID)
+	if err != nil {
+		return wrapRepoErr("读取消息失败", "", err)
+	}
+	// 每个父节点只保留 sort_order 最大的子节点；循环上限 len(all) 兜底防环。
+	next := make(map[string]repository.Message, len(all))
+	for _, m := range all {
+		if m.ParentID == "" {
+			continue
+		}
+		if current, ok := next[m.ParentID]; !ok || m.SortOrder > current.SortOrder {
+			next[m.ParentID] = m
+		}
+	}
+	leaf := message.ID
+	for range len(all) {
+		child, ok := next[leaf]
+		if !ok {
+			break
+		}
+		leaf = child.ID
+	}
+	if err := a.topics.SetActiveNode(topicID, leaf, nowMs()); err != nil {
+		return wrapRepoErr("切换活动分支失败", "话题不存在", err)
+	}
+	return nil
+}
+
+// GetTopicTree 返回话题的完整消息树：先根 DFS，父节点先于子节点，兄弟按 sort_order。
+func (a *AppAPI) GetTopicTree(topicID string) (TopicTreeDTO, error) {
+	if err := a.ready(); err != nil {
+		return TopicTreeDTO{}, err
+	}
+	if err := validateUUID("话题 ID", topicID); err != nil {
+		return TopicTreeDTO{}, err
+	}
+	topic, all, _, err := a.loadTopicPath(strings.TrimSpace(topicID))
+	if err != nil {
+		return TopicTreeDTO{}, err
+	}
+
+	byID := make(map[string]repository.Message, len(all))
+	for _, m := range all {
+		byID[m.ID] = m
+	}
+	children := make(map[string][]repository.Message, len(all))
+	roots := make([]repository.Message, 0, 2)
+	for _, m := range all {
+		// 根节点 = parent_id 为空或父节点不在集合中（异常数据也保证能出现在树里）。
+		if _, ok := byID[m.ParentID]; m.ParentID == "" || !ok {
+			roots = append(roots, m)
+			continue
+		}
+		children[m.ParentID] = append(children[m.ParentID], m)
+	}
+
+	stats := make(map[string]MessageDTO, len(all))
+	for _, dto := range pathMessageDTOs(all, all) {
+		stats[dto.ID] = dto
+	}
+	onPath := make(map[string]struct{}, len(all))
+	for _, m := range pathTo(all, topic.ActiveNodeID) {
+		onPath[m.ID] = struct{}{}
+	}
+
+	nodes := make([]TreeNodeDTO, 0, len(all))
+	visited := make(map[string]struct{}, len(all))
+	var walk func(m repository.Message)
+	walk = func(m repository.Message) {
+		// 成环节点重复访问时直接跳过，避免无限递归。
+		if _, seen := visited[m.ID]; seen {
+			return
+		}
+		visited[m.ID] = struct{}{}
+		stat := stats[m.ID]
+		_, active := onPath[m.ID]
+		kids := children[m.ID]
+		nodes = append(nodes, TreeNodeDTO{
+			ID:           m.ID,
+			ParentID:     m.ParentID,
+			Role:         m.Role,
+			Status:       m.Status,
+			Preview:      previewFromParts(m.PartsJSON),
+			SiblingIndex: stat.SiblingIndex,
+			SiblingCount: stat.SiblingCount,
+			ChildCount:   len(kids),
+			OnActivePath: active,
+			IsActive:     m.ID == topic.ActiveNodeID,
+			CreatedAt:    m.CreatedAt,
+		})
+		for _, kid := range kids {
+			walk(kid)
+		}
+	}
+	for _, root := range roots {
+		walk(root)
+	}
+	return TopicTreeDTO{TopicID: topic.ID, ActiveNodeID: topic.ActiveNodeID, Nodes: nodes}, nil
 }
 
 // ---------------------------------------------------------------- settings
@@ -2024,17 +2274,73 @@ func toAssistantDTO(as repository.Assistant) AssistantDTO {
 	}
 }
 
-func toTopicDTO(t repository.Topic, messageCount int) TopicDTO {
+// turnTarget 一轮对话解析后的服务与模型信息（ID 已按“留空回退模型自身归属”规范化）。
+type turnTarget struct {
+	provider   repository.Provider
+	model      repository.Model
+	providerID string
+	remoteID   string
+}
+
+// resolveTurnTarget 校验并解析对话使用的服务与模型：ID 留空时回退到模型自身的归属。
+func (a *AppAPI) resolveTurnTarget(providerID, modelID, remoteID, modality string) (turnTarget, error) {
+	provider, err := a.providerByID(providerID)
+	if err != nil {
+		return turnTarget{}, err
+	}
+	model, err := a.modelByID(modelID)
+	if err != nil {
+		return turnTarget{}, err
+	}
+	resolvedProviderID := strings.TrimSpace(providerID)
+	if resolvedProviderID == "" {
+		resolvedProviderID = model.ProviderID
+	}
+	resolvedRemoteID := strings.TrimSpace(remoteID)
+	if resolvedRemoteID == "" {
+		resolvedRemoteID = model.RemoteID
+	}
+	if err := validateTextLen("远端模型 ID", resolvedRemoteID, maxRemoteIDLen); err != nil {
+		return turnTarget{}, err
+	}
+	value := strings.TrimSpace(modality)
+	if value == "" {
+		value = model.Modality
+	}
+	if value != "" {
+		if err := validateEnum("模型类型", value, modalities); err != nil {
+			return turnTarget{}, err
+		}
+	}
+	return turnTarget{provider: provider, model: model, providerID: resolvedProviderID, remoteID: resolvedRemoteID}, nil
+}
+
+// assistantOf 读取话题所属助手；助手已删除或读取失败时返回零值（只影响展示信息）。
+func (a *AppAPI) assistantOf(topic repository.Topic) repository.Assistant {
+	if topic.AssistantID == "" {
+		return repository.Assistant{}
+	}
+	found, err := a.assistants.Get(topic.AssistantID)
+	if err != nil {
+		return repository.Assistant{}
+	}
+	return found
+}
+
+func toTopicDTO(t repository.Topic, messageCount int, hasBranches bool) TopicDTO {
 	return TopicDTO{
 		ID:           t.ID,
 		AssistantID:  t.AssistantID,
 		Title:        t.Title,
 		MessageCount: messageCount,
+		ActiveNodeID: t.ActiveNodeID,
+		HasBranches:  hasBranches,
 		CreatedAt:    t.CreatedAt,
 		UpdatedAt:    t.UpdatedAt,
 	}
 }
 
+// toMessageDTO 转换单条消息；变体序号由 pathMessageDTOs 按父节点补齐，单独转换时为 1/1。
 func toMessageDTO(m repository.Message) MessageDTO {
 	return MessageDTO{
 		ID:            m.ID,
@@ -2044,18 +2350,144 @@ func toMessageDTO(m repository.Message) MessageDTO {
 		PartsJSON:     m.PartsJSON,
 		ProviderID:    m.ProviderID,
 		ModelRemoteID: m.ModelRemoteID,
+		ParentID:      m.ParentID,
 		SortOrder:     m.SortOrder,
+		SiblingCount:  1,
+		SiblingIndex:  1,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}
 }
 
-func toMessageDTOs(list []repository.Message) []MessageDTO {
-	out := make([]MessageDTO, 0, len(list))
-	for _, item := range list {
-		out = append(out, toMessageDTO(item))
+// findMessage 在消息集合中按 id 查找；找不到返回零值。
+func findMessage(all []repository.Message, id string) repository.Message {
+	for _, m := range all {
+		if m.ID == id {
+			return m
+		}
+	}
+	return repository.Message{}
+}
+
+// pathTo 沿 parent_id 从 nodeID 上溯到根并反转，返回根 → 节点的路径；
+// nodeID 为空、找不到或链路断裂时返回 nil；visited 防环。
+func pathTo(all []repository.Message, nodeID string) []repository.Message {
+	if nodeID == "" {
+		return nil
+	}
+	byID := make(map[string]repository.Message, len(all))
+	for _, m := range all {
+		byID[m.ID] = m
+	}
+	path := make([]repository.Message, 0, 8)
+	visited := make(map[string]struct{}, len(all))
+	for current := nodeID; current != ""; {
+		if _, seen := visited[current]; seen {
+			break
+		}
+		m, ok := byID[current]
+		if !ok {
+			return nil
+		}
+		visited[current] = struct{}{}
+		path = append(path, m)
+		current = m.ParentID
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path
+}
+
+// activePath 返回话题当前活动分支（根 → 活动节点）。
+func activePath(topic repository.Topic, all []repository.Message) []repository.Message {
+	return pathTo(all, topic.ActiveNodeID)
+}
+
+// pathMessageDTOs 把 path 中的消息转成 DTO，并按 all（须为同一话题的全量消息）补齐兄弟序号：
+// 同一 parent_id 下的消息互为变体，序号按 sort_order 升序、从 1 起。
+func pathMessageDTOs(path, all []repository.Message) []MessageDTO {
+	groups := make(map[string][]repository.Message, len(all))
+	for _, m := range all {
+		groups[m.ParentID] = append(groups[m.ParentID], m)
+	}
+	out := make([]MessageDTO, 0, len(path))
+	for _, m := range path {
+		dto := toMessageDTO(m)
+		group := groups[m.ParentID]
+		if len(group) == 0 {
+			out = append(out, dto)
+			continue
+		}
+		dto.SiblingCount = len(group)
+		for i, sibling := range group {
+			if sibling.ID == m.ID {
+				dto.SiblingIndex = i + 1
+				break
+			}
+		}
+		out = append(out, dto)
 	}
 	return out
+}
+
+// siblingMessageDTO 依据全量消息为单条消息补齐兄弟序号后转 DTO。
+func siblingMessageDTO(all []repository.Message, m repository.Message) MessageDTO {
+	dtos := pathMessageDTOs([]repository.Message{m}, all)
+	if len(dtos) == 0 {
+		return toMessageDTO(m)
+	}
+	return dtos[0]
+}
+
+// branchesIn 判断消息集合中是否存在分支（同一父节点下有多条消息）。
+func branchesIn(all []repository.Message) bool {
+	seen := make(map[string]int, len(all))
+	for _, m := range all {
+		seen[m.ParentID]++
+		if seen[m.ParentID] > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// withMessages 返回 all 与 extra 拼接后的新切片（复制底层数组，避免与调用方共享写入）。
+func withMessages(all []repository.Message, extra ...repository.Message) []repository.Message {
+	merged := make([]repository.Message, 0, len(all)+len(extra))
+	merged = append(merged, all...)
+	merged = append(merged, extra...)
+	return merged
+}
+
+// previewFromParts 提取分支面板用的消息文本摘要；
+// 超大 parts_json（可能内嵌 base64 图片）直接放弃解析，取不到文本时返回空。
+func previewFromParts(partsJSON string) string {
+	if len(partsJSON) > previewPartsBytes {
+		return ""
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(partsJSON), &parts); err != nil {
+		return ""
+	}
+	for _, part := range parts {
+		if part.Type != "text" {
+			continue
+		}
+		folded := strings.Join(strings.Fields(part.Text), " ")
+		if folded == "" {
+			continue
+		}
+		runes := []rune(folded)
+		if len(runes) > previewRuneLimit {
+			return string(runes[:previewRuneLimit]) + "…"
+		}
+		return folded
+	}
+	return ""
 }
 
 func pickAssistantID(assistants []AssistantDTO, want string) string {

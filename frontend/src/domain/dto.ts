@@ -120,6 +120,10 @@ export interface TopicDTO {
   AssistantID: string
   Title: string
   MessageCount: number
+  /** 当前活动分支的末端消息 ID；空字符串表示话题还没有消息 */
+  ActiveNodeID: string
+  /** 话题内是否存在分支（某个消息节点有多个子节点） */
+  HasBranches: boolean
   CreatedAt: number
   UpdatedAt: number
 }
@@ -137,7 +141,13 @@ export interface MessageDTO {
   PartsJSON: string
   ProviderID: string
   ModelRemoteID: string
+  /** 同一话题中的父消息 ID；空字符串表示根节点 */
+  ParentID: string
   SortOrder: number
+  /** 同一父节点下的变体总数（无变体为 1） */
+  SiblingCount: number
+  /** 当前消息在变体中的 1 起序号 */
+  SiblingIndex: number
   CreatedAt: number
   UpdatedAt: number
 }
@@ -164,6 +174,17 @@ export interface TurnDTO {
 
 export interface StartAssistantMessageDTO {
   TopicID: string
+  /** 要回答的用户消息 ID（重新生成时传旧回答的父消息） */
+  ParentMessageID: string
+  ProviderID: string
+  ModelID: string
+  ModelRemoteID: string
+  ModelModality: string
+}
+
+export interface EditMessageDTO {
+  MessageID: string
+  Text: string
   ProviderID: string
   ModelID: string
   ModelRemoteID: string
@@ -253,4 +274,38 @@ export interface TransportErrorDTO {
   RequestID: string
   Status: number
   Message: string
+}
+
+// ---------------------------------------------------------------- 分支与导出
+
+export interface TreeNodeDTO {
+  ID: string
+  ParentID: string
+  Role: string
+  Status: string
+  Preview: string
+  SiblingIndex: number
+  SiblingCount: number
+  ChildCount: number
+  OnActivePath: boolean
+  IsActive: boolean
+  CreatedAt: number
+}
+
+export interface TopicTreeDTO {
+  TopicID: string
+  ActiveNodeID: string
+  Nodes: TreeNodeDTO[]
+}
+
+export interface MarkdownExportDTO {
+  TopicID: string
+  FileName: string
+  Markdown: string
+  MessageCount: number
+}
+
+export interface SaveMarkdownResultDTO {
+  Saved: boolean
+  FileName: string
 }

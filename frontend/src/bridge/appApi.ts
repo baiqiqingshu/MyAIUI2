@@ -4,7 +4,9 @@ import type {
   BootstrapDTO,
   ConnectionResultDTO,
   CreateTopicDTO,
+  EditMessageDTO,
   FinishTurnDTO,
+  MarkdownExportDTO,
   MessageDTO,
   ModelDTO,
   ModelSyncResultDTO,
@@ -13,6 +15,7 @@ import type {
   RequestHandleDTO,
   SaveAppSettingsDTO,
   SaveAssistantDTO,
+  SaveMarkdownResultDTO,
   SaveMessageSnapshotDTO,
   SaveModelDTO,
   SaveProviderDTO,
@@ -23,6 +26,7 @@ import type {
   StartAssistantMessageDTO,
   StartTurnDTO,
   TopicDTO,
+  TopicTreeDTO,
   TurnDTO,
 } from '../domain/dto'
 
@@ -66,15 +70,31 @@ export const appApi = {
   CreateTopic: (input: CreateTopicDTO) => call<TopicDTO>('CreateTopic', input),
   RenameTopic: (id: string, title: string) => call<void>('RenameTopic', id, title),
   DeleteTopic: (id: string) => call<void>('DeleteTopic', id),
+  // 复制为新会话：把当前分支的完整消息路径复制成一个新话题。
+  DuplicateTopic: (id: string) => call<TopicDTO>('DuplicateTopic', id),
+  // 导出/另存为 Markdown：Markdown 文本始终由 Go 生成，前端不提交任意文件内容。
+  ExportTopicMarkdown: (topicId: string) => call<MarkdownExportDTO>('ExportTopicMarkdown', topicId),
+  SaveTopicMarkdown: (topicId: string, fileName: string) =>
+    call<SaveMarkdownResultDTO>('SaveTopicMarkdown', topicId, fileName),
 
   ListMessages: (topicId: string, beforeOrder: number, limit: number) =>
     call<MessageDTO[]>('ListMessages', topicId, beforeOrder, limit),
   StartTurn: (input: StartTurnDTO) => call<TurnDTO>('StartTurn', input),
   StartAssistantMessage: (input: StartAssistantMessageDTO) =>
-    call<MessageDTO>('StartAssistantMessage', input),
+    call<TurnDTO>('StartAssistantMessage', input),
+  // 编辑用户消息并重新发送：新消息成为原消息的兄弟变体，并切换到该分支。
+  EditAndResendUserMessage: (input: EditMessageDTO) =>
+    call<TurnDTO>('EditAndResendUserMessage', input),
   SaveTurnSnapshot: (input: SaveMessageSnapshotDTO) => call<void>('SaveTurnSnapshot', input),
   FinishTurn: (input: FinishTurnDTO) => call<void>('FinishTurn', input),
   DeleteMessage: (id: string) => call<void>('DeleteMessage', id),
+
+  // 分支：精确设置活动节点（回退）或切到某个变体的最深层分支。
+  SetActiveNode: (topicId: string, messageId: string) =>
+    call<void>('SetActiveNode', topicId, messageId),
+  SwitchToBranch: (topicId: string, messageId: string) =>
+    call<void>('SwitchToBranch', topicId, messageId),
+  GetTopicTree: (topicId: string) => call<TopicTreeDTO>('GetTopicTree', topicId),
 
   SaveAppSettings: (input: SaveAppSettingsDTO) => call<AppSettingsDTO>('SaveAppSettings', input),
   GetSearchSettings: () => call<SearchSettingsDTO>('GetSearchSettings'),

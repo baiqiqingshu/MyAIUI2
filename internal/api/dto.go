@@ -138,6 +138,10 @@ type TopicDTO struct {
 	AssistantID string
 	Title       string
 	MessageCount int
+	// ActiveNodeID 是当前活动分支的末端消息 ID；空字符串表示该话题还没有消息。
+	ActiveNodeID string
+	// HasBranches 表示话题内存在分支（某个消息节点有多个子节点）。
+	HasBranches bool
 	CreatedAt   int64
 	UpdatedAt   int64
 }
@@ -157,9 +161,14 @@ type MessageDTO struct {
 	PartsJSON     string
 	ProviderID    string
 	ModelRemoteID string
-	SortOrder     int
-	CreatedAt     int64
-	UpdatedAt     int64
+	// ParentID 指向同一话题中的父消息；空字符串表示该话题的根节点。
+	ParentID string
+	SortOrder int
+	// SiblingCount/SiblingIndex 描述同一父节点下的变体关系：无变体时为 1/1。
+	SiblingCount int
+	SiblingIndex int
+	CreatedAt    int64
+	UpdatedAt    int64
 }
 
 // StartTurnDTO 开始一轮对话：先落库用户消息与助手占位消息。
@@ -184,9 +193,21 @@ type TurnDTO struct {
 	History          []MessageDTO // 本话题历史消息（不含本轮两条），按 sort_order 升序
 }
 
-// StartAssistantMessageDTO 重新生成时创建的助手占位消息。
+// StartAssistantMessageDTO 为指定用户消息创建新的助手回答（重新生成时旧回答保留为兄弟变体）。
 type StartAssistantMessageDTO struct {
-	TopicID       string
+	TopicID string
+	// ParentMessageID 是要回答的用户消息 ID（重新生成时传旧回答的父消息 ID）。
+	ParentMessageID string
+	ProviderID      string
+	ModelID         string
+	ModelRemoteID   string
+	ModelModality   string
+}
+
+// EditMessageDTO 编辑一条用户消息并重新发送：生成兄弟变体、切换活动分支，并创建助手占位消息。
+type EditMessageDTO struct {
+	MessageID     string
+	Text          string
 	ProviderID    string
 	ModelID       string
 	ModelRemoteID string
@@ -285,4 +306,42 @@ type TransportErrorDTO struct {
 	RequestID string
 	Status    int
 	Message   string
+}
+
+// ---------------------------------------------------------------- 分支与导出
+
+// TreeNodeDTO 会话内分支树的一个节点（只读快照）。
+type TreeNodeDTO struct {
+	ID           string
+	ParentID     string // 空字符串表示根节点
+	Role         string
+	Status       string
+	Preview      string // 消息文本前若干字符，用于分支面板展示
+	SiblingIndex int    // 同一父节点下的 1 起序号
+	SiblingCount int    // 同一父节点下的变体总数
+	ChildCount   int    // 直接子节点数量
+	OnActivePath bool   // 是否位于当前活动分支上
+	IsActive     bool   // 是否为当前活动节点
+	CreatedAt    int64
+}
+
+// TopicTreeDTO 话题的完整消息树（先根深度优先，父节点先于子节点）。
+type TopicTreeDTO struct {
+	TopicID      string
+	ActiveNodeID string
+	Nodes        []TreeNodeDTO
+}
+
+// MarkdownExportDTO 导出的 Markdown 文本；前端负责复制到剪贴板或请求另存为文件。
+type MarkdownExportDTO struct {
+	TopicID      string
+	FileName     string // 建议文件名（不含路径）
+	Markdown     string
+	MessageCount int // 导出的当前分支消息数
+}
+
+// SaveMarkdownResultDTO 另存为结果；Saved=false 表示用户取消了保存对话框。
+type SaveMarkdownResultDTO struct {
+	Saved    bool
+	FileName string // 实际写入的文件名（不含路径）
 }

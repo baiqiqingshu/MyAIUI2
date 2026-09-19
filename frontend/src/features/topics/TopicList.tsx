@@ -4,10 +4,11 @@ import { appApi } from '../../bridge/appApi'
 import type { TopicDTO } from '../../domain/dto'
 import { useUiStore } from '../../app/uiStore'
 import { EmptyState, IconButton } from '../../components/ui'
+import { ExportMarkdownDialog } from './ExportMarkdownDialog'
 import { TopicDeleteConfirm, TopicRow } from './TopicActions'
 import './topics.css'
 
-/** 第二栏话题面板：新建 / 切换 / 重命名 / 删除。 */
+/** 第二栏话题面板：新建 / 切换 / 复制 / 导出 / 重命名 / 删除。 */
 export function TopicPanel() {
   const activeAssistantId = useUiStore((s) => s.activeAssistantId)
   const activeTopicId = useUiStore((s) => s.activeTopicId)
@@ -17,6 +18,7 @@ export function TopicPanel() {
   const showToast = useUiStore((s) => s.showToast)
   const [creating, setCreating] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<TopicDTO | null>(null)
+  const [pendingExport, setPendingExport] = useState<TopicDTO | null>(null)
 
   async function handleCreate() {
     if (!activeAssistantId) {
@@ -56,6 +58,7 @@ export function TopicPanel() {
             active={topic.ID === activeTopicId}
             onSelect={selectTopic}
             onRequestDelete={setPendingDelete}
+            onRequestExport={setPendingExport}
           />
         ))}
         {topics.length === 0 ? (
@@ -64,6 +67,7 @@ export function TopicPanel() {
       </div>
 
       <TopicDeleteConfirm topic={pendingDelete} onClose={() => setPendingDelete(null)} />
+      <ExportMarkdownDialog topic={pendingExport} onClose={() => setPendingExport(null)} />
     </aside>
   )
 }

@@ -12,10 +12,13 @@ import (
 //go:embed schema.sql
 var schemaSQL string
 
-// schemaVersion 当前 schema 版本（PRAGMA user_version 目标值）。
-const schemaVersion = 1
+//go:embed migration_v2.sql
+var migrationV2SQL string
 
-// migrate 幂等执行 schema：版本已达标直接返回，否则在单事务内建表并写入版本号。
+// schemaVersion 当前 schema 版本（PRAGMA user_version 目标值）。
+const schemaVersion = 2
+
+// migrate 幂等执行 schema：版本已达标直接返回，否则在单事务内执行建表或增量迁移并写入版本号。
 func migrate(ctx context.Context, handle *sql.DB) error {
 	version, err := userVersion(ctx, handle)
 	if err != nil {
@@ -31,9 +34,14 @@ func migrate(ctx context.Context, handle *sql.DB) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	for _, stmt := range splitStatements(schemaSQL) {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("初始化数据库结构失败: %w", err)
+	// user_version 为 0 说明是全新库，schema.sql 已是最新结构；否则按版本逐级增量升级。
+	if version < 1 {
+		if err := execScript(ctx, tx, schemaSQL, "初始化数据库结构失败"); err != nil {
+			return err
+		}
+	} else {
+		if err := execScript(ctx, tx, migrationV2SQL, "升级数据库结构失败"); err != nil {
+			return err
 		}
 	}
 	// user_version 不支持参数占位符，此处只拼接编译期常量。
@@ -42,6 +50,16 @@ func migrate(ctx context.Context, handle *sql.DB) error {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("提交数据库迁移失败: %w", err)
+	}
+	return nil
+}
+
+// execScript 逐条执行脚本中的单语句（注释行已由 splitStatements 剥离）。
+func execScript(ctx context.Context, tx *sql.Tx, script string, prefix string) error {
+	for _, stmt := range splitStatements(script) {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("%s: %w", prefix, err)
+		}
 	}
 	return nil
 }
