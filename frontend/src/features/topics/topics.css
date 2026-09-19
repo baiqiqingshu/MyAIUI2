@@ -1,0 +1,81 @@
+/* 话题面板（第二栏）。类名统一 topic- 前缀；容器类 .topic-panel 是响应式折叠契约。 */
+
+.topic-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+}
+
+.topic-panel__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+
+.topic-panel__title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.topic-panel__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-2) var(--space-3);
+}
+
+.topic-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-1) 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.topic-item:hover {
+  background: var(--bg-hover);
+}
+
+.topic-item.is-active {
+  background: var(--bg-active);
+}
+
+.topic-item__main {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  padding: var(--space-2) 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-item__actions {
+  display: none;
+  align-items: center;
+  gap: 0;
+  flex: none;
+}
+
+.topic-item:hover .topic-item__actions,
+.topic-item.is-active .topic-item__actions {
+  display: flex;
+}
+
+.topic-item__input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+}

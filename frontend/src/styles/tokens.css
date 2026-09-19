@@ -1,0 +1,151 @@
+/* 设计 Token：数值取自 Cherry Studio 的语义色体系（浅色/深色成对）。
+   上游来源（只读参考，仅取数值与视觉语言，不含任何 Logo/品牌资产）：
+     packages/ui/src/styles/shadcn.css
+     packages/ui/src/styles/product.css
+     packages/ui/src/styles/tokens/colors/primitive.css
+     packages/ui/src/styles/tokens/colors/providers.css
+     packages/ui/src/styles/tokens/colors/status-legacy.css
+     packages/ui/src/styles/tokens/{radius,spacing}.css
+   来源登记见 docs/UPSTREAM_REUSE.md。
+   变量名是冻结契约：组件只允许消费这里的变量，不要新增重名体系。
+
+   语义映射（左＝本项目，右＝上游）：
+     表面   bg-app=background / bg-sidebar=sidebar / bg-panel=card / bg-elevated=popover
+     交互   bg-hover=accent(=muted, 5%) / bg-active=ghost-active
+     文本   text-primary=foreground / text-secondary=muted-foreground
+            / text-tertiary=foreground-tertiary / text-inverse=primary-foreground
+     主题色 accent 取上游 info/link 的蓝（cs-blue-500/400），不用其品牌专属色。
+     反馈   danger=error / success / warning / 对应的 -soft=*-subtle 底色。 */
+
+:root {
+  color-scheme: light;
+
+  --bg-app: oklch(1 0 0); /* cs-background */
+  --bg-sidebar: oklch(0.9672 0 0); /* cs-sidebar */
+  --bg-panel: oklch(1 0 0); /* cs-card */
+  --bg-elevated: oklch(1 0 0); /* cs-popover */
+  --bg-hover: oklch(0 0 0 / 0.05); /* cs-accent / cs-muted */
+  --bg-active: oklch(0 0 0 / 0.1); /* cs-ghost-active */
+  --bg-input: oklch(1 0 0);
+  --bg-code: #e3e3e3; /* product --code-block */
+  --bg-subtle: oklch(0 0 0 / 0.02); /* cs-background-subtle（Markdown 内嵌块底色） */
+  --bg-mask: oklch(0 0 0 / 0.35);
+
+  --text-primary: oklch(0.213 0 0); /* cs-foreground */
+  --text-secondary: oklch(0.556 0 0); /* cs-muted-foreground */
+  --text-tertiary: oklch(0.669 0 0); /* cs-foreground-tertiary */
+  --text-inverse: oklch(0.985 0 0); /* cs-primary-foreground */
+
+  --border: oklch(0 0 0 / 0.1); /* cs-border */
+  --border-strong: oklch(0 0 0 / 0.2); /* cs-border-strong */
+  --border-subtle: oklch(0 0 0 / 0.04); /* cs-border-subtle */
+
+  --accent: oklch(0.63 0.186 260); /* cs-blue-500 */
+  --accent-hover: oklch(0.54 0.215 263); /* cs-blue-600 */
+  --accent-soft: oklch(0.97 0.014 255); /* cs-info-subtle = cs-blue-50 */
+  --accent-text: oklch(0.54 0.215 263); /* --link = cs-blue-600 */
+
+  --danger: oklch(0.64 0.208 25); /* cs-red-500 */
+  --danger-soft: oklch(0.97 0.014 17); /* cs-red-50 */
+  --success: oklch(0.72 0.192 149); /* cs-green-500 */
+  --warning: oklch(0.77 0.165 71); /* cs-amber-500 */
+
+  --radius-sm: 0.375rem; /* cs-radius-sm 6px */
+  --radius-md: 0.5rem; /* cs-radius-md 8px */
+  --radius-lg: 0.625rem; /* cs-radius-lg 10px */
+  --radius-full: 9999px; /* cs-radius-round */
+
+  /* 间距对应 cs-size-5xs/4xs/3xs/2xs/xs */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  /* 上游用 Tailwind 阴影刻度（shadow-sm / shadow-lg） */
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
+  --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.1), 0 4px 6px -4px oklch(0 0 0 / 0.1);
+
+  --font-sans: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+
+  --rail-width: 64px; /* cs-size-2xl 4rem */
+  --panel-width: 256px; /* 16rem */
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-app: oklch(0.15 0 0); /* cs-neutral-950 */
+  --bg-sidebar: oklch(0.2393 0 0); /* cs-sidebar(dark) */
+  --bg-panel: oklch(0.2 0 0); /* cs-card(dark) = cs-neutral-900 */
+  --bg-elevated: oklch(0.27 0 0); /* cs-popover(dark) = cs-neutral-800 */
+  --bg-hover: oklch(1 0 0 / 0.1); /* cs-accent(dark) */
+  --bg-active: oklch(1 0 0 / 0.15); /* cs-ghost-active(dark) */
+  --bg-input: oklch(0.27 0 0); /* cs-input(dark) */
+  --bg-code: #323232; /* product --code-block(dark) */
+  --bg-subtle: oklch(1 0 0 / 0.02); /* cs-background-subtle(dark) */
+  --bg-mask: oklch(0 0 0 / 0.55);
+
+  --text-primary: oklch(0.931 0 0); /* cs-foreground(dark) */
+  --text-secondary: oklch(0.708 0 0); /* cs-muted-foreground(dark) */
+  --text-tertiary: oklch(0.559 0 0); /* cs-foreground-tertiary(dark) */
+  --text-inverse: oklch(0.205 0 0); /* cs-primary-foreground(dark) */
+
+  --border: oklch(1 0 0 / 0.1); /* cs-border(dark) */
+  --border-strong: oklch(1 0 0 / 0.2); /* cs-border-strong(dark) */
+  --border-subtle: oklch(1 0 0 / 0.05); /* cs-border-subtle(dark) */
+
+  --accent: oklch(0.72 0.143 254); /* cs-blue-400 */
+  --accent-hover: oklch(0.8 0.098 252); /* cs-blue-300 */
+  --accent-soft: oklch(0.39 0.13 265); /* cs-info-subtle(dark) = cs-blue-900 */
+  --accent-text: oklch(0.72 0.143 254); /* --link(dark) = cs-blue-400 */
+
+  --danger: oklch(0.71 0.166 22); /* cs-red-400 */
+  --danger-soft: oklch(0.4 0.135 26); /* cs-red-900 */
+  --success: oklch(0.8 0.182 152); /* cs-green-400 */
+  --warning: oklch(0.83 0.164 84); /* cs-amber-400 */
+
+  /* 深色下阴影需要更重才可见 */
+  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.4);
+  --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.45), 0 4px 6px -4px oklch(0 0 0 / 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg-app: oklch(0.15 0 0);
+    --bg-sidebar: oklch(0.2393 0 0);
+    --bg-panel: oklch(0.2 0 0);
+    --bg-elevated: oklch(0.27 0 0);
+    --bg-hover: oklch(1 0 0 / 0.1);
+    --bg-active: oklch(1 0 0 / 0.15);
+    --bg-input: oklch(0.27 0 0);
+    --bg-code: #323232;
+    --bg-subtle: oklch(1 0 0 / 0.02);
+    --bg-mask: oklch(0 0 0 / 0.55);
+
+    --text-primary: oklch(0.931 0 0);
+    --text-secondary: oklch(0.708 0 0);
+    --text-tertiary: oklch(0.559 0 0);
+    --text-inverse: oklch(0.205 0 0);
+
+    --border: oklch(1 0 0 / 0.1);
+    --border-strong: oklch(1 0 0 / 0.2);
+    --border-subtle: oklch(1 0 0 / 0.05);
+
+    --accent: oklch(0.72 0.143 254);
+    --accent-hover: oklch(0.8 0.098 252);
+    --accent-soft: oklch(0.39 0.13 265);
+    --accent-text: oklch(0.72 0.143 254);
+
+    --danger: oklch(0.71 0.166 22);
+    --danger-soft: oklch(0.4 0.135 26);
+    --success: oklch(0.8 0.182 152);
+    --warning: oklch(0.83 0.164 84);
+
+    --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.4);
+    --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.45), 0 4px 6px -4px oklch(0 0 0 / 0.4);
+  }
+}

@@ -1,0 +1,329 @@
+/* UI primitives 样式（配合 components/ui/index.tsx） */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-btn--sm {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.ui-btn--primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.ui-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.ui-btn--danger {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+}
+
+.ui-btn__spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  animation: ui-spin 0.7s linear infinite;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ui-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.ui-icon-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.ui-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-input,
+.ui-textarea,
+.ui-select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ui-textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.ui-input:focus,
+.ui-textarea:focus,
+.ui-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.ui-input:disabled,
+.ui-textarea:disabled,
+.ui-select:disabled {
+  opacity: 0.6;
+}
+
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.ui-field__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.ui-field__hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.ui-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0;
+}
+
+.ui-toggle__knob {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  transition: background 0.15s ease;
+}
+
+.ui-toggle__knob::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.ui-toggle.is-on .ui-toggle__knob {
+  background: var(--accent);
+}
+
+.ui-toggle.is-on .ui-toggle__knob::after {
+  transform: translateX(14px);
+}
+
+.ui-toggle__label {
+  font-size: 13px;
+}
+
+.ui-spinner {
+  display: inline-block;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: ui-spin 0.7s linear infinite;
+}
+
+.ui-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: var(--space-5);
+}
+
+.ui-empty__icon {
+  color: var(--text-tertiary);
+}
+
+.ui-empty__title {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.ui-empty__desc {
+  font-size: 13px;
+  max-width: 420px;
+  line-height: 1.7;
+}
+
+.ui-mask {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-mask);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.ui-mask--right {
+  justify-content: flex-end;
+  align-items: stretch;
+}
+
+.ui-modal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ui-modal__head,
+.ui-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.ui-modal__head h2,
+.ui-drawer__head h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ui-modal__body,
+.ui-drawer__body {
+  padding: var(--space-4);
+  overflow: auto;
+  flex: 1;
+}
+
+.ui-modal__foot,
+.ui-drawer__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.ui-drawer {
+  background: var(--bg-elevated);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-width: 92vw;
+}
+
+.ui-confirm__desc {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.ui-toasts {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  z-index: 100;
+  align-items: center;
+}
+
+.ui-toast {
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  font-size: 13px;
+  max-width: 620px;
+  cursor: pointer;
+}
+
+.ui-toast--error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ui-toast--success {
+  border-color: var(--success);
+}

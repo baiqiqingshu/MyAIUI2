@@ -1,0 +1,18 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "MyAIUI2",
+  "outputfilename": "MyAIUI2",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm run build",
+  "frontend:dev:watcher": "pnpm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "./frontend",
+  "author": {
+    "name": "MyAIUI2"
+  },
+  "info": {
+    "productName": "MyAIUI2",
+    "productVersion": "0.1.0",
+    "comments": "本地优先的 AI 对话工作台（原型）"
+  }
+}

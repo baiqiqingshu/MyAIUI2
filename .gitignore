@@ -5,7 +5,8 @@ build/bin/
 
 # Frontend
 frontend/node_modules/
-frontend/dist/
+frontend/dist/*
+!frontend/dist/.gitkeep
 frontend/.vite/
 
 # Generated Wails bindings
@@ -33,3 +34,6 @@ Thumbs.db
 # Temporary working files; keep the directory itself
 temp/*
 !temp/.gitkeep
+
+# Wails 依赖哈希缓存
+frontend/package.json.md5

@@ -1,0 +1,48 @@
+/* 滚动条：细、低对比，悬停加深。
+   数值取自 Cherry Studio 的 src/renderer/assets/styles/scrollbar.css。 */
+:root {
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+  --scrollbar-width: 6px;
+  --scrollbar-height: 6px;
+  --scrollbar-thumb-radius: 10px;
+}
+
+:root[data-theme='dark'] {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  }
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-height);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--scrollbar-thumb-radius);
+  background: var(--scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 滚动容器：不把滚动传递给父级 */
+.scroll-area {
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+}

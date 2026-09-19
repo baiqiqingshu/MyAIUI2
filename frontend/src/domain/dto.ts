@@ -1,0 +1,256 @@
+// 与 internal/api/dto.go 一一对应的镜像类型。字段名保持 PascalCase，与 Wails
+// 绑定生成规则（Go 字段名即 JSON 字段名）一致；两侧改动必须同步。
+
+export interface AppSettingsDTO {
+  ActiveAssistantID: string
+  ActiveTopicID: string
+  Theme: string
+}
+
+export interface SaveAppSettingsDTO {
+  ActiveAssistantID: string
+  ActiveTopicID: string
+  Theme: string
+}
+
+export interface BootstrapDTO {
+  AppName: string
+  Version: string
+  Settings: AppSettingsDTO
+  Assistants: AssistantDTO[]
+  Providers: ProviderDTO[]
+  Models: ModelDTO[]
+  Topics: TopicDTO[]
+  Search: SearchSettingsDTO
+}
+
+export interface ProviderDTO {
+  ID: string
+  Name: string
+  Kind: string
+  BaseURL: string
+  Enabled: boolean
+  ModelPath: string
+  HasAPIKey: boolean
+  CreatedAt: number
+  UpdatedAt: number
+  LastSyncAt: number
+  LastSyncError: string
+  ModelCount: number
+}
+
+export interface SaveProviderDTO {
+  ID: string
+  Name: string
+  Kind: string
+  BaseURL: string
+  APIKey: string
+  ClearAPIKey: boolean
+  Enabled: boolean
+  ModelPath: string
+}
+
+export interface ConnectionResultDTO {
+  OK: boolean
+  LatencyMs: number
+  Message: string
+  ModelCount: number
+}
+
+export interface ModelDTO {
+  ID: string
+  ProviderID: string
+  RemoteID: string
+  DisplayName: string
+  Modality: string
+  CapabilitiesJSON: string
+  Source: string
+  Enabled: boolean
+  MissingRemote: boolean
+  LastSeenAt: number
+}
+
+export interface SaveModelDTO {
+  ID: string
+  ProviderID: string
+  RemoteID: string
+  DisplayName: string
+  Modality: string
+}
+
+export interface ModelSyncResultDTO {
+  Added: number
+  Updated: number
+  Missing: number
+  Total: number
+  DurationMs: number
+  Error: string
+  Models: ModelDTO[]
+}
+
+export interface AssistantDTO {
+  ID: string
+  Name: string
+  Emoji: string
+  SystemPrompt: string
+  ProviderID: string
+  ModelID: string
+  Temperature: number
+  TemperatureSet: boolean
+  WebSearchDefault: boolean
+  SortOrder: number
+  CreatedAt: number
+  UpdatedAt: number
+}
+
+export interface SaveAssistantDTO {
+  ID: string
+  Name: string
+  Emoji: string
+  SystemPrompt: string
+  ProviderID: string
+  ModelID: string
+  Temperature: number
+  TemperatureSet: boolean
+  WebSearchDefault: boolean
+}
+
+export interface TopicDTO {
+  ID: string
+  AssistantID: string
+  Title: string
+  MessageCount: number
+  CreatedAt: number
+  UpdatedAt: number
+}
+
+export interface CreateTopicDTO {
+  AssistantID: string
+  Title: string
+}
+
+export interface MessageDTO {
+  ID: string
+  TopicID: string
+  Role: string
+  Status: string
+  PartsJSON: string
+  ProviderID: string
+  ModelRemoteID: string
+  SortOrder: number
+  CreatedAt: number
+  UpdatedAt: number
+}
+
+export interface StartTurnDTO {
+  TopicID: string
+  Title: string
+  UserText: string
+  ProviderID: string
+  ModelID: string
+  ModelRemoteID: string
+  ModelModality: string
+}
+
+export interface TurnDTO {
+  Topic: TopicDTO
+  UserMessage: MessageDTO
+  AssistantMessage: MessageDTO
+  Assistant: AssistantDTO
+  Model: ModelDTO
+  Provider: ProviderDTO
+  History: MessageDTO[]
+}
+
+export interface StartAssistantMessageDTO {
+  TopicID: string
+  ProviderID: string
+  ModelID: string
+  ModelRemoteID: string
+  ModelModality: string
+}
+
+export interface SaveMessageSnapshotDTO {
+  MessageID: string
+  PartsJSON: string
+  Status: string
+}
+
+export interface FinishTurnDTO {
+  MessageID: string
+  PartsJSON: string
+  Status: string
+  ErrorCode: string
+  ErrorMessage: string
+}
+
+export interface SearchSettingsDTO {
+  Enabled: boolean
+  ServiceID: string
+  BaseURL: string
+  HasAPIKey: boolean
+  MaxResults: number
+}
+
+export interface SaveSearchSettingsDTO {
+  Enabled: boolean
+  ServiceID: string
+  BaseURL: string
+  APIKey: string
+  ClearAPIKey: boolean
+  MaxResults: number
+}
+
+export interface SearchRequestDTO {
+  Query: string
+  Limit: number
+}
+
+export interface SearchResultDTO {
+  Title: string
+  URL: string
+  Snippet: string
+  Engine: string
+}
+
+export interface SearchResponseDTO {
+  Results: SearchResultDTO[]
+  ElapsedMs: number
+}
+
+export interface ProviderRequestDTO {
+  RequestID: string
+  ProviderID: string
+  Method: string
+  Path: string
+  Headers: Record<string, string>
+  Body: string
+  BodyEncoding: string
+  TimeoutMs: number
+}
+
+export interface RequestHandleDTO {
+  RequestID: string
+}
+
+export interface TransportHeadersDTO {
+  RequestID: string
+  Status: number
+  StatusText: string
+  Headers: Record<string, string>
+}
+
+export interface TransportChunkDTO {
+  RequestID: string
+  DataBase64: string
+}
+
+export interface TransportEndDTO {
+  RequestID: string
+}
+
+export interface TransportErrorDTO {
+  RequestID: string
+  Status: number
+  Message: string
+}

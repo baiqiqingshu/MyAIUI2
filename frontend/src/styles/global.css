@@ -1,0 +1,175 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-text);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* 三栏骨架：助手栏 / 话题栏 / 主工作区 */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) var(--panel-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+/* 抽屉/弹层是 position:fixed，不参与网格；其余列内容禁止撑破列宽 */
+.app-shell > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+/* 主区滚动容器留白：左右统一，底部略小；滚动条不挤压内容 */
+.main-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  scrollbar-gutter: stable;
+}
+
+/* 窄窗口折叠：收起话题栏，主区占满剩余宽度 */
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  }
+
+  .app-shell > .topic-panel {
+    display: none;
+  }
+
+  .main-scroll {
+    padding: var(--space-4);
+  }
+}
+
+/* 通用工具类 */
+.muted {
+  color: var(--text-secondary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 启动与致命错误界面 */
+.app-boot {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  background: var(--bg-app);
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.app-boot__error {
+  max-width: 640px;
+  white-space: pre-wrap;
+  text-align: left;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  overflow: auto;
+}
+
+.app-boot__hint {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.app-boot__spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: app-spin 0.8s linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,20 @@
+/* 图片结果只读展示（前缀 image-） */
+
+.image-result {
+  margin: 0;
+}
+
+.image-result__img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-code);
+  object-fit: contain;
+}
+
+.image-result--empty {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
