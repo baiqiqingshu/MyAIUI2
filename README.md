@@ -38,7 +38,8 @@ python temp/fake_provider.py 8791     # 然后在应用里把模型服务地址�
 
 ## 运行期数据
 
-- 数据库与设置：`%LOCALAPPDATA%\MyAIUI2\data\app.db`（WAL）。
+- 数据库与设置：`%LOCALAPPDATA%\MyAIUI2\data\app.db`（WAL）。C:\\Users\\Administrator\\AppData\\Local\\MyAIUI2\\data\\app.db
+
 - API Key：Windows DPAPI 加密后入库，前端只能看到「已配置」。
 
 ## 参考项目
