@@ -25,7 +25,7 @@ const (
 
 // 枚举白名单：未知取值一律拒绝，避免脏数据落库。
 var (
-	providerKinds  = enumSet("openai-compatible")
+	providerKinds  = enumSet("openai-compatible", "openai", "openai-responses")
 	modalities     = enumSet("text", "image")
 	roles          = enumSet("user", "assistant")
 	messageStatus  = enumSet("pending", "streaming", "done", "cancelled", "error", "interrupted")

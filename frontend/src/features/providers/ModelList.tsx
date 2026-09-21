@@ -30,13 +30,52 @@ export function ModelList({ providerId }: { providerId: string }) {
   const [newDisplayName, setNewDisplayName] = useState('')
   const [newModality, setNewModality] = useState('text')
   const [deleteTarget, setDeleteTarget] = useState<ModelDTO | null>(null)
+  // 本次同步新增的模型 ID；非空时在列表上方显示勾选面板（默认全不选）。
+  const [addedIDs, setAddedIDs] = useState<string[]>([])
+  const [selectedIDs, setSelectedIDs] = useState<string[]>([])
+  const [enabling, setEnabling] = useState(false)
+
+  // 面板内容始终按 ID 从 store 取，刷新后展示信息保持最新。
+  const addedModels = useMemo(
+    () => addedIDs.map((id) => allModels.find((m) => m.ID === id)).filter((m): m is ModelDTO => !!m),
+    [addedIDs, allModels],
+  )
+
+  function closeAddedPanel() {
+    setAddedIDs([])
+    setSelectedIDs([])
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIDs((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
+  }
 
   async function handleSync() {
     setSyncing(true)
     try {
-      await syncModels(providerId)
+      const result = await syncModels(providerId)
+      if (result && result.AddedIDs.length > 0) {
+        setAddedIDs(result.AddedIDs)
+        setSelectedIDs([])
+      }
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function handleEnableSelected() {
+    const targetIDs = selectedIDs
+    if (targetIDs.length === 0) return
+    setEnabling(true)
+    try {
+      await Promise.all(targetIDs.map((id) => appApi.SetModelEnabled(id, true)))
+      await refreshModels()
+      closeAddedPanel()
+      showToast(`已启用 ${targetIDs.length} 个模型`, 'success')
+    } catch (error) {
+      showToast(`启用失败：${describeError(error)}`, 'error')
+    } finally {
+      setEnabling(false)
     }
   }
 
@@ -137,6 +176,57 @@ export function ModelList({ providerId }: { providerId: string }) {
           <Button size="sm" variant="primary" onClick={handleAdd} loading={busyId === 'new'}>
             添加
           </Button>
+        </div>
+      ) : null}
+
+      {addedModels.length > 0 ? (
+        <div className="model-sync-panel">
+          <div className="model-sync-panel__head">
+            <span className="model-sync-panel__title">本次新增 {addedModels.length} 个模型</span>
+            <span className="model-sync-panel__hint">新同步的模型默认未启用，请勾选要使用的模型</span>
+          </div>
+          <ul className="model-sync-panel__items">
+            {addedModels.map((model) => (
+              <li key={model.ID}>
+                <label className="model-sync-panel__label">
+                  <input
+                    type="checkbox"
+                    checked={selectedIDs.includes(model.ID)}
+                    disabled={enabling}
+                    onChange={() => toggleSelected(model.ID)}
+                  />
+                  <span className="model-sync-panel__name">{model.DisplayName}</span>
+                  <span className="model-sync-panel__remote">{model.RemoteID}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="model-sync-panel__actions">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={enabling}
+              onClick={() =>
+                setSelectedIDs(
+                  selectedIDs.length === addedModels.length ? [] : addedModels.map((m) => m.ID),
+                )
+              }
+            >
+              {selectedIDs.length === addedModels.length ? '取消全选' : '全选'}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={enabling}
+              disabled={selectedIDs.length === 0}
+              onClick={handleEnableSelected}
+            >
+              启用选中（{selectedIDs.length}）
+            </Button>
+            <Button size="sm" variant="ghost" disabled={enabling} onClick={closeAddedPanel}>
+              跳过
+            </Button>
+          </div>
         </div>
       ) : null}
 

@@ -39,7 +39,7 @@ type BootstrapDTO struct {
 type ProviderDTO struct {
 	ID            string
 	Name          string
-	Kind          string // openai-compatible
+	Kind          string // openai-compatible | openai | openai-responses
 	BaseURL       string
 	Enabled       bool
 	ModelPath     string
@@ -100,6 +100,8 @@ type ModelSyncResultDTO struct {
 	DurationMs int64
 	Error      string
 	Models     []ModelDTO
+	// AddedIDs 是本次新插入的 synced 模型 ID（默认未启用），供前端呈现勾选。
+	AddedIDs []string
 }
 
 // ---------------------------------------------------------------- assistants

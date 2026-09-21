@@ -86,6 +86,8 @@ export interface ModelSyncResultDTO {
   DurationMs: number
   Error: string
   Models: ModelDTO[]
+  /** 本次新插入的模型 ID（默认未启用），供前端勾选启用。 */
+  AddedIDs: string[]
 }
 
 export interface AssistantDTO {

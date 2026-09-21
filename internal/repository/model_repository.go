@@ -106,9 +106,11 @@ func (r *ModelRepo) Get(id string) (Model, error) {
 	return m, nil
 }
 
-// UpsertSynced 事务内写入同步结果：已存在的 synced 模型更新展示信息，新模型插入；source='manual' 的行不动。
-func (r *ModelRepo) UpsertSynced(providerID string, items []SyncedModel, now int64) (int, int, error) {
-	added, updated := 0, 0
+// UpsertSynced 事务内写入同步结果：已存在的 synced 模型更新展示信息，新模型插入且默认未启用；source='manual' 的行不动。
+// 返回本次真正插入的模型 ID（按 items 顺序，恒为非 nil 切片）与更新计数。
+func (r *ModelRepo) UpsertSynced(providerID string, items []SyncedModel, now int64) ([]string, int, error) {
+	addedIDs := make([]string, 0, len(items))
+	updated := 0
 	err := r.db.WithTx(context.Background(), func(tx *sql.Tx) error {
 		for _, item := range items {
 			displayName := item.DisplayName
@@ -147,18 +149,20 @@ func (r *ModelRepo) UpsertSynced(providerID string, items []SyncedModel, now int
 				continue
 			}
 
-			if _, err := tx.ExecContext(context.Background(), `INSERT INTO models (id, provider_id, remote_id, display_name, modality, capabilities_json, source, enabled, missing_remote, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, 'synced', 1, 0, ?)`,
-				uuid.NewString(), providerID, item.RemoteID, displayName, modality, capabilities, now); err != nil {
+			// 新模型默认未启用（enabled=0），由用户在模型列表中显式勾选。
+			id := uuid.NewString()
+			if _, err := tx.ExecContext(context.Background(), `INSERT INTO models (id, provider_id, remote_id, display_name, modality, capabilities_json, source, enabled, missing_remote, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, 'synced', 0, 0, ?)`,
+				id, providerID, item.RemoteID, displayName, modality, capabilities, now); err != nil {
 				return err
 			}
-			added++
+			addedIDs = append(addedIDs, id)
 		}
 		return nil
 	})
 	if err != nil {
-		return 0, 0, err
+		return nil, 0, err
 	}
-	return added, updated, nil
+	return addedIDs, updated, nil
 }
 
 // MarkMissing 把本次未返回、且来源为 synced 的模型标记为失联；manual 模型永不改动。

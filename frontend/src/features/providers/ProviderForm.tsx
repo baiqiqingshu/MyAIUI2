@@ -5,6 +5,8 @@ import { useUiStore } from '../../app/uiStore'
 import type { ProviderDTO, SaveProviderDTO } from '../../domain/dto'
 import { describeError } from './errors'
 
+type ProviderKind = 'openai-compatible' | 'openai' | 'openai-responses'
+
 // 预设模板只填充静态地址信息，不触发任何网络访问。
 interface ProviderTemplate {
   id: string
@@ -13,23 +15,32 @@ interface ProviderTemplate {
   baseURL: string
   modelPath: string
   local: boolean
+  kind: ProviderKind
 }
 
 const TEMPLATES: ProviderTemplate[] = [
-  { id: 'openai', label: 'OpenAI', displayName: 'OpenAI', baseURL: 'https://api.openai.com/v1', modelPath: '/models', local: false },
-  { id: 'deepseek', label: 'DeepSeek', displayName: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', modelPath: '/models', local: false },
-  { id: 'openrouter', label: 'OpenRouter', displayName: 'OpenRouter', baseURL: 'https://openrouter.ai/api/v1', modelPath: '/models', local: false },
-  { id: 'ollama', label: 'Ollama（本地，无需 Key）', displayName: 'Ollama', baseURL: 'http://localhost:11434/v1', modelPath: '/models', local: true },
-  { id: 'lmstudio', label: 'LM Studio（本地，无需 Key）', displayName: 'LM Studio', baseURL: 'http://localhost:1234/v1', modelPath: '/models', local: true },
-  { id: 'custom', label: '自定义（OpenAI 兼容）', displayName: '', baseURL: '', modelPath: '/models', local: false },
+  { id: 'openai', label: 'OpenAI', displayName: 'OpenAI', baseURL: 'https://api.openai.com/v1', modelPath: '/models', local: false, kind: 'openai' },
+  { id: 'openai-responses', label: 'OpenAI Responses API', displayName: 'OpenAI Responses', baseURL: 'https://api.openai.com/v1', modelPath: '/models', local: false, kind: 'openai-responses' },
+  { id: 'deepseek', label: 'DeepSeek', displayName: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', modelPath: '/models', local: false, kind: 'openai-compatible' },
+  { id: 'openrouter', label: 'OpenRouter', displayName: 'OpenRouter', baseURL: 'https://openrouter.ai/api/v1', modelPath: '/models', local: false, kind: 'openai-compatible' },
+  { id: 'ollama', label: 'Ollama（本地，无需 Key）', displayName: 'Ollama', baseURL: 'http://localhost:11434/v1', modelPath: '/models', local: true, kind: 'openai-compatible' },
+  { id: 'lmstudio', label: 'LM Studio（本地，无需 Key）', displayName: 'LM Studio', baseURL: 'http://localhost:1234/v1', modelPath: '/models', local: true, kind: 'openai-compatible' },
+  { id: 'custom', label: '自定义（OpenAI 兼容）', displayName: '', baseURL: '', modelPath: '/models', local: false, kind: 'openai-compatible' },
 ]
 
 const TEMPLATE_OPTIONS = TEMPLATES.map((t) => ({ value: t.id, label: t.label }))
 
-const KIND = 'openai-compatible'
+const KIND_OPTIONS = [
+  { value: 'openai-compatible', label: 'OpenAI 兼容（/chat/completions）' },
+  { value: 'openai', label: 'OpenAI 原生（/chat/completions）' },
+  { value: 'openai-responses', label: 'OpenAI Responses（/v1/responses）' },
+]
 
-function matchTemplate(baseURL: string): string {
-  const found = TEMPLATES.find((t) => t.id !== 'custom' && t.baseURL === baseURL)
+const DEFAULT_KIND: ProviderKind = 'openai-compatible'
+
+// OpenAI 与 Responses 模板地址相同，必须连同协议一起比对才能选对模板。
+function matchTemplate(baseURL: string, kind: string): string {
+  const found = TEMPLATES.find((t) => t.id !== 'custom' && t.baseURL === baseURL && t.kind === kind)
   return found ? found.id : 'custom'
 }
 
@@ -46,9 +57,10 @@ export function ProviderForm({
   const refreshModels = useUiStore((s) => s.refreshModels)
   const showToast = useUiStore((s) => s.showToast)
 
-  const [templateId, setTemplateId] = useState(() => matchTemplate(provider?.BaseURL ?? ''))
+  const [templateId, setTemplateId] = useState(() => matchTemplate(provider?.BaseURL ?? '', provider?.Kind || DEFAULT_KIND))
   const [name, setName] = useState(provider?.Name ?? '')
   const [baseURL, setBaseURL] = useState(provider?.BaseURL ?? '')
+  const [kind, setKind] = useState<string>(provider?.Kind || DEFAULT_KIND)
   const [modelPath, setModelPath] = useState(provider?.ModelPath || '/models')
   const [apiKey, setAPIKey] = useState('')
   const [clearAPIKey, setClearAPIKey] = useState(false)
@@ -65,6 +77,7 @@ export function ProviderForm({
     setName((current) => current || next.displayName)
     setBaseURL(next.baseURL)
     setModelPath(next.modelPath)
+    setKind(next.kind)
   }
 
   async function handleSave() {
@@ -81,7 +94,7 @@ export function ProviderForm({
     const input: SaveProviderDTO = {
       ID: provider?.ID ?? '',
       Name: trimmedName,
-      Kind: provider?.Kind || KIND,
+      Kind: kind,
       BaseURL: trimmedBase,
       APIKey: apiKey.trim(),
       ClearAPIKey: clearAPIKey,
@@ -116,8 +129,11 @@ export function ProviderForm({
       <Field label="名称">
         <Input value={name} onChange={setName} placeholder="例如：我的 OpenAI" />
       </Field>
-      <Field label="BaseURL" hint="OpenAI 兼容接口地址，通常以 /v1 结尾">
+      <Field label="BaseURL" hint="接口地址，通常以 /v1 结尾">
         <Input value={baseURL} onChange={setBaseURL} placeholder="https://api.openai.com/v1" />
+      </Field>
+      <Field label="接口协议" hint="Responses 仅适用于支持 /v1/responses 的服务">
+        <Select value={kind} onChange={setKind} options={KIND_OPTIONS} />
       </Field>
       <Field label="API Key" hint={keyHint}>
         <Input

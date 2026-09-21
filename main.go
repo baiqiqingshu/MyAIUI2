@@ -17,7 +17,9 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:       "MyAIUI2",
+		// 窗口标题 = 产物/进程名：任务管理器对窗口进程显示的「应用名」取自窗口标题，
+		// 若这里保留旧名，展开进程树时会看到一个与 asina_myaiui 不一致的条目。
+		Title:       "asina_myaiui",
 		Width:       1280,
 		Height:      820,
 		MinWidth:    940,
@@ -28,7 +30,9 @@ func main() {
 		OnShutdown:  app.Shutdown,
 		Bind:        []interface{}{app.api},
 		// 单实例：内网桌面工具，避免同库并发写。
-		SingleInstanceLock: &options.SingleInstanceLock{UniqueId: "myaiui2-single-instance-v1"},
+		// UniqueId 与产物名 asina_myaiui 保持一致：旧版本（MyAIUI2.exe）与新版本可并存，
+		// 部署时不会因为换了进程名而互相抢占。
+		SingleInstanceLock: &options.SingleInstanceLock{UniqueId: "asina_myaiui-single-instance-v1"},
 		// 安全基线：关闭文件拖放与 WebView 拖放，关闭生产环境默认右键菜单。
 		DragAndDrop: &options.DragAndDrop{
 			EnableFileDrop:     false,

@@ -290,6 +290,7 @@
 
 /* 输入区 */
 .chat-composer {
+  position: relative; /* 上边沿拖动条以此为定位基准 */
   flex: 0 0 auto;
   border-top: 1px solid var(--border);
   padding: var(--space-3) var(--space-5) var(--space-4);
@@ -297,6 +298,38 @@
   flex-direction: column;
   gap: var(--space-2);
   background: var(--bg-app);
+}
+
+/* 上边沿拖动条：调整输入框高度。绝对定位不占布局，工具栏位置不受影响。 */
+.chat-composer__resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px; /* 命中区 ≥6px，便于抓取 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none; /* 触摸拖动交给指针事件，不被滚动吞掉 */
+  user-select: none;
+  outline: none;
+}
+
+.chat-composer__resize-grip {
+  width: 40px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--text-tertiary);
+  opacity: 0.3;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.chat-composer__resize:hover .chat-composer__resize-grip,
+.chat-composer__resize:focus-visible .chat-composer__resize-grip,
+.chat-composer__resize--active .chat-composer__resize-grip {
+  opacity: 1;
+  background: var(--accent);
 }
 
 .chat-composer__toolbar {
@@ -310,9 +343,10 @@
   max-width: 320px;
 }
 
-.chat-composer__input {
+/* 高度改由上方拖动条控制，关掉原生右下角 resize 手柄（选择器需压过 .ui-textarea）。 */
+.chat-composer .chat-composer__input {
   width: 100%;
-  resize: vertical;
+  resize: none;
   min-height: 68px;
 }
 

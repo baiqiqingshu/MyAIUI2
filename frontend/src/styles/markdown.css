@@ -417,3 +417,41 @@
 .md img {
   display: none;
 }
+
+/* Mermaid 图表：居中、宽度自适应；超宽图在容器内横向滚动，不撑破消息列 */
+.md-mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 1em 0;
+  padding: 0.75em;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 回退态：外观完全交给内部的 CodeBlock，容器自身不上色不加框 */
+.md-mermaid--fallback {
+  display: block;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.md-mermaid__notice {
+  margin: 1em 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* 回退态里提示行与代码块相邻，压缩代码块的上边距，避免两段间距叠在一起 */
+.md-mermaid--fallback > .md-mermaid__notice + .md-code {
+  margin-top: 0.5em;
+}

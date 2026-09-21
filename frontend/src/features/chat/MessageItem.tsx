@@ -223,7 +223,7 @@ export function MessageItem({
 function PartView({ part, streaming }: { part: MessagePart; streaming: boolean }) {
   switch (part.type) {
     case 'text':
-      return <MarkdownText text={part.text} />
+      return <MarkdownText text={part.text} streaming={streaming} />
     case 'reasoning':
       return (
         <details className="chat-reasoning" open={streaming}>

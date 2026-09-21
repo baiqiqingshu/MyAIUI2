@@ -118,6 +118,7 @@ export interface TextareaProps {
   rows?: number
   disabled?: boolean
   className?: string
+  style?: React.CSSProperties
   onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
 }
@@ -129,12 +130,14 @@ export function Textarea({
   rows = 4,
   disabled,
   className,
+  style,
   onKeyDown,
   onPaste,
 }: TextareaProps) {
   return (
     <textarea
       className={clsx('ui-textarea', className)}
+      style={style}
       value={value}
       rows={rows}
       placeholder={placeholder}

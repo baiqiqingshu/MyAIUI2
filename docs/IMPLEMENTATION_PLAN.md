@@ -1025,3 +1025,72 @@ CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_ord
 - 全部分支导出、导出为 JSON/HTML、导出含图片数据。
 - 多模型并行回复分组（siblings group）、消息编辑的模型内联改写。
 - 消息树分页（原型一次性返回整条活动分支与整棵树，上限 2000 条）。
+
+## 25. 增量优化（2026-09-22）
+
+本节是 P0.1 交付后的第二轮需求，与第 2～24 节冲突时以本节为准。五项改动彼此独立，均已端到端验证（证据见 `docs/MANUAL_SMOKE_TEST.md` §9）。
+
+### 25.1 同步模型默认不勾选
+
+| 项 | 决策 |
+| --- | --- |
+| 数据层 | `ModelRepo.UpsertSynced` 插入新 synced 行时写 `enabled = 0`；更新既有行时**不触碰** `enabled`（用户手工启用的状态在后续同步中保留）；`source='manual'` 的行仍然完全不动。 |
+| 返回值 | 签名由 `(int, int, error)` 改为 `([]string, int, error)`，返回本次真正 INSERT 的模型 ID（按远端返回顺序，恒为非 nil 切片）。 |
+| DTO | `ModelSyncResultDTO` 增加 `AddedIDs []string`；`SyncProviderModels` 的所有提前返回路径都返回空切片而非 nil（nil 切片会被序列化成 `null`，前端按数组消费）。 |
+| UI | 同步后若 `AddedIDs` 非空，在模型列表上方出现「本次新增 N 个模型」面板：checkbox **默认全不选**，提供「全选 / 取消全选」「启用选中（n）」「跳过」；启用按勾选项逐个 `SetModelEnabled(id, true)` 后刷新列表。行内 Toggle 语义不变。 |
+
+副作用（有意为之）：新库同步完成后模型全部处于未启用状态，输入器显示「没有可用的模型」引导，必须先勾选才能对话。这是需求要求的行为，不是缺陷。
+
+### 25.2 OpenAI 协议类型区分
+
+`ProviderDTO.Kind` 现有三种取值（`internal/api/validation.go` 的枚举白名单）：
+
+| Kind | 前端 SDK 用法 | 实际请求路径 |
+| --- | --- | --- |
+| `openai-compatible`（默认） | `createOpenAICompatible(...).languageModel(id)` | `/chat/completions` |
+| `openai` | `createOpenAI(...).chat(id)` | `/chat/completions` |
+| `openai-responses` | `createOpenAI(...).responses(id)` | `/responses` |
+
+- 新增依赖 `@ai-sdk/openai@3.0.114`：与 `ai@6.0.286` / `@ai-sdk/openai-compatible@2.0.75` 同属 `@ai-sdk/provider@3.0.16` + `provider-utils@4.0.51` 线（版本必须成组，不可单独升级）。
+- 两种 SDK provider 共用 `createWailsFetch(provider.ID)` 与占位密钥，真实密钥仍由 Go 侧注入；`transport.ResolveEndpoint` 只需同 origin 相对路径，`/v1/responses` 无需新增白名单。
+- 无需改请求头白名单：`@ai-sdk/openai` 只在用户显式配置时发送 `OpenAI-Organization`/`OpenAI-Project`，本项目不发。
+- 图片模型对四种 provider 均走 `.imageModel()`（`imageEngine.ts` 未改动）。
+- Provider 表单新增「接口协议」Select，预设模板新增「OpenAI Responses API」；OpenAI 与 Responses 模板 BaseURL 相同，因此模板匹配改为按 `BaseURL + Kind` 比对。
+
+### 25.3 产物与进程名 `asina_myaiui`
+
+- `wails.json`：`outputfilename: "asina_myaiui"`，`info.productName: "asina_myaiui"`（后者写入 PE 的 `FileDescription`/`ProductName`，任务管理器与文件属性据此显示）；`name` 一并改为 `asina_myaiui`（它决定嵌入清单的 `assemblyIdentity`，即 `com.wails.asina_myaiui`）。
+- `main.go`：窗口标题改为 `asina_myaiui`。Windows 任务管理器对「有窗口的应用」会用**窗口标题**作为应用显示名，只改文件名会让展开进程树时出现旧名条目（实测：进程名已是 `asina_myaiui`，但窗口标题仍是 `MyAIUI2`，任务管理器里能看到 `MyAIUI2` 的条目）。
+- `main.go`：单实例 `UniqueId` 改为 `asina_myaiui-single-instance-v1`。这是应用标识的一部分，改名后旧版 `MyAIUI2.exe` 与新产物不会互相抢占单实例锁，部署切换期可并存。
+- 窗口标题、可执行文件名、`FileDescription`、WebView2 的 `--webview-exe-name`、清单标识五处统一为 `asina_myaiui`；子进程为 WebView2 自身的 `msedgewebview2.exe`（任何 WebView2 应用都有这一层，非本项目进程）。
+- `%LOCALAPPDATA%\MyAIUI2\data` 数据目录保持不变：进程名要求只覆盖可执行文件与进程标识，改数据目录会让既有用户数据「消失」。
+- 构建命令与质量门禁不变：`wails build -clean -trimpath -platform windows/amd64` → `build/bin/asina_myaiui.exe`。
+
+### 25.4 Markdown 渲染 Mermaid 流程图
+
+- 新增依赖 `mermaid@12.0.0`，仅被 `MermaidBlock` **动态 `import()`**，首屏入口 chunk 不含 mermaid（diagram 代码按需分块加载）。
+- 渲染参数：`startOnLoad: false`、`securityLevel: 'strict'`（标签经 DOMPurify 清洗、禁用 click 交互）、`htmlLabels: false`（所有图表类型都不用 HTML 标签，标签为 SVG `<text>`）、`fontFamily: 'inherit'`、主题跟随应用（`system` 时监听 `prefers-color-scheme`）。生成的 SVG 由 mermaid 产出，不是模型原始 HTML；`img` 禁令与 URL 白名单等 §14.5 规则不变。
+- 渲染时序：`mermaid.parse` 校验通过才 `mermaid.render`；`streaming` 为真时 debounce 600ms（避免每个分片都解析失败抖动），流结束后立即出图；用递增 token 丢弃过期结果、卸载后不再 setState。
+- 回退：语法不合法、代码超过 20000 字符、或渲染异常时，回退为原来的代码块（保留语言栏与「复制」），并给出浅色提示；渲染失败时清理 mermaid 遗留的临时节点。
+- 每次渲染使用「`useId` 基名 + 递增序号」作为 DOM id：`mermaid.render` 会先删掉同 id 的既有节点，新 id 保证旧图能保留到新图就绪。
+- 抽取 `CodeBlock.tsx`（原 `MarkdownText` 内的代码块实现）供 `MarkdownText` 与 `MermaidBlock` 共用；`MessageItem` 把 `streaming` 透传给 `MarkdownText`。
+
+### 25.5 输入框改为拖动上边沿调整高度
+
+- 去掉 `<textarea>` 的原生 `resize`（`.chat-composer__input` 改为 `resize: none`），不再有右下角手柄。
+- 输入区最上边沿新增分隔条手柄（`role="separator"`、`:hover`/`:focus-visible`/拖动中高亮、`cursor: ns-resize`、命中区 8px）：Pointer Events 拖动，高度按 `clamp(起点高度 + (起点 Y - 当前 Y), 68, min(480, innerHeight * 0.6))` 计算，向上拖变大；`ArrowUp`/`ArrowDown` 每次 ±24px；双击复位为 `rows={3}` 的自然高度；窗口尺寸变化时重新夹取上限；拖动结束把焦点还给输入框。
+- `TextareaProps` 增加可选 `style` 透传（唯一一处共享 primitive 改动）。
+
+### 25.6 验证方式（本轮）
+
+- 前端：`pnpm typecheck`（`tsc --noEmit`）+ `pnpm build`；生产构建（含生产 CSP）下用注入 Wails 绑定替身的真实页面驱动 DOM 断言（勾选面板、协议下拉、Mermaid SVG、拖动高度）。
+- 后端：`go vet ./...`、`go build ./...`、`temp/check_sync.go`（同步落库自证）。
+- 端到端：`wails dev` 的浏览器桥接会话（隔离 `LOCALAPPDATA`）+ `temp/fake_provider.py`，验证「同步→勾选→启用→对话」「`openai` 与 `openai-responses` 分别命中 `/chat/completions` 与 `/responses`」「Mermaid 渲染」。
+- 打包：`wails build -clean -trimpath -platform windows/amd64` 产出 `build/bin/asina_myaiui.exe`，PE 资源 `FileDescription`/`ProductName` 均为 `asina_myaiui`。
+
+### 25.7 本次不做
+
+- 同步面板不提供「全部启用」之外的批量策略（不做按前缀/正则过滤、不做模型能力自动识别）。
+- 不做 Azure OpenAI、Ollama 原生 `/api/tags`、Google/Anthropic 原生协议（仍为 P1）。
+- Mermaid 不做缩放/平移/导出图片，不做 `mindmap` 等需要额外布局引擎的图表（沿用 mermaid 默认按需加载）。
+- 输入框高度不持久化（重启回到默认 3 行）。

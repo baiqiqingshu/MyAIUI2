@@ -196,3 +196,81 @@
 .model-row .ui-select {
   width: 96px;
 }
+
+/* 同步后勾选面板：新同步的模型默认未启用，需用户显式勾选并启用。 */
+.model-sync-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.model-sync-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.model-sync-panel__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.model-sync-panel__hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.model-sync-panel__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.model-sync-panel__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.model-sync-panel__label input[type='checkbox'] {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.model-sync-panel__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-sync-panel__remote {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-sync-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

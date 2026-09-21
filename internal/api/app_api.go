@@ -592,19 +592,20 @@ func (a *AppAPI) TestProvider(id string) (ConnectionResultDTO, error) {
 
 // SyncProviderModels 拉取远端模型列表并事务性同步；失败只写入 LastSyncError。
 func (a *AppAPI) SyncProviderModels(id string) (ModelSyncResultDTO, error) {
+	// AddedIDs 始终为数组：前端按数组消费，nil 切片会被序列化成 null。
+	result := ModelSyncResultDTO{AddedIDs: []string{}}
 	if err := a.ready(); err != nil {
-		return ModelSyncResultDTO{}, err
+		return result, err
 	}
 	if err := validateUUID("模型服务 ID", id); err != nil {
-		return ModelSyncResultDTO{}, err
+		return result, err
 	}
 	provider, err := a.providers.Get(strings.TrimSpace(id))
 	if err != nil {
-		return ModelSyncResultDTO{}, wrapRepoErr("读取模型服务失败", "模型服务不存在", err)
+		return result, wrapRepoErr("读取模型服务失败", "模型服务不存在", err)
 	}
 
 	start := time.Now()
-	result := ModelSyncResultDTO{}
 	fail := func(message string) (ModelSyncResultDTO, error) {
 		message = trimErrText(message)
 		if err := a.providers.SetSyncResult(provider.ID, nowMs(), message); err != nil {
@@ -641,19 +642,20 @@ func (a *AppAPI) SyncProviderModels(id string) (ModelSyncResultDTO, error) {
 		seen = append(seen, item.RemoteID)
 	}
 	now := nowMs()
-	added, updated, err := a.models.UpsertSynced(provider.ID, items, now)
+	addedIDs, updated, err := a.models.UpsertSynced(provider.ID, items, now)
 	if err != nil {
-		return ModelSyncResultDTO{}, wrapRepoErr("写入模型失败", "", err)
+		return result, wrapRepoErr("写入模型失败", "", err)
 	}
 	missing, err := a.models.MarkMissing(provider.ID, seen, now)
 	if err != nil {
-		return ModelSyncResultDTO{}, wrapRepoErr("标记失联模型失败", "", err)
+		return result, wrapRepoErr("标记失联模型失败", "", err)
 	}
 	if err := a.providers.SetSyncResult(provider.ID, now, ""); err != nil {
 		logging.Errorf("写入同步结果失败: %v", err)
 	}
 
-	result.Added = added
+	result.Added = len(addedIDs)
+	result.AddedIDs = addedIDs
 	result.Updated = updated
 	result.Missing = missing
 	result.Models = a.syncedModelsOrEmpty(provider.ID)

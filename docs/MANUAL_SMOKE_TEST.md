@@ -112,3 +112,32 @@ wails build -clean -trimpath -platform windows/amd64   # 交付构建
 
 该缺陷属前端渲染层，与模型/Provider 无关；模型侧只是把大量增量推得快，暴露了逐增量 setState 的写法。
 
+## 9. 增量优化（2026-09-22：同步不默认勾选 / OpenAI 协议区分 / Mermaid / 输入框拖动上边沿 / 进程名）
+
+执行环境：`wails dev` 的浏览器桥接会话（真实 Go 绑定、真实 SQLite、真实 DPAPI）+ 隔离数据目录 `LOCALAPPDATA=<temp>/e2e-localappdata` + `temp/fake_provider.py`（端口 8765，含 `/v1/chat/completions`、`/v1/responses` 与 `/log`）；
+UI 断言另在**生产构建**（`frontend/dist`，生产 CSP）上用注入绑定替身的页面复核；发布构建 `build/bin/asina_myaiui.exe` 单独确认命名与元数据。
+
+| 项 | 结果 | 证据 |
+| --- | --- | --- |
+| 同步的新模型默认不启用 | 通过 | 假服务端返回 3 个模型，同步后 `models` 表新增行 `enabled=0`、行内 Toggle 全为关；面板「本次新增 3 个模型」+ 提示「新同步的模型默认未启用，请勾选要使用的模型」，3 个 checkbox 均为未勾选 |
+| 勾选后才启用 | 通过 | 勾选 `smoke-chat` 后按钮变「启用选中（1）」，点击后仅该模型 Toggle 变开（`true/false/false`），面板关闭并提示「已启用 1 个模型」 |
+| 已有模型状态不被同步覆盖 | 通过 | 二次同步 `added=0`、无新增面板；先前手工启用的模型仍为启用（`temp/check_sync.go`：`updated=3`、`enabled` 保持不变；`manual` 行全程未被触碰） |
+| `AddedIDs` 恒为数组 | 通过 | 失败/提前返回路径返回空切片，前端 `result.AddedIDs ?? []` 兜底；实测无 `null` |
+| 接口协议三选项 | 通过 | 表单字段顺序「预设模板 / 名称 / BaseURL / 接口协议 / API Key / 模型路径」；协议下拉为 `openai-compatible｜openai｜openai-responses`，提示「Responses 仅适用于支持 /v1/responses 的服务」；新建默认 `openai-compatible` |
+| `openai-compatible` 走 chat completions | 通过 | 端到端发送后假服务端 `/log` 记录 `POST /v1/chat/completions`，回答正常流式渲染（`【smoke-chat #1】上下文 1 条…`） |
+| `openai-responses` 走 Responses API | 通过 | 新建 `openai-responses` 服务商并同步启用模型后发送，`/log` 记录 `POST /v1/responses`（同一会话此前为 `/v1/chat/completions`），回答正常渲染（`【smoke-chat-2 #1】上下文 3 条…`） |
+| Responses SSE 解析 | 通过 | 事件字段按 SDK 解析器构造（`response.created` / `response.output_item.added` / `response.output_text.delta` / `response.output_item.done` / `response.completed`+usage），`temp/smoke_responses.mjs` 22/22 通过 |
+| Mermaid 渲染（真实应用） | 通过 | 模型回答中的 ` ```mermaid ` 围栏在消息内渲染为 SVG（`.md-mermaid svg`），图中标签为「是 / 否 / 用户输入 / 前端解析 / 包含图表语法? / 渲染 Mermaid / 按普通Markdown 渲染 / 展示结果」；无 `foreignObject`（`htmlLabels:false`），无残留代码块 |
+| Mermaid 回退与边界 | 通过 | 非法语法回退为代码块（含语言栏与「复制」）+ 提示「Mermaid 渲染失败，已显示源码」；>20000 字符提示「Mermaid 代码过长，已显示源码」；流式期间只显示源码、流结束自动出图；渲染失败不留 mermaid 临时节点 |
+| Mermaid 不进首屏 chunk | 通过 | 动态 `import('mermaid')`：入口页请求中没有 mermaid deps，出现围栏后才按需加载；构建产物里 mermaid 为独立异步 chunk（入口 `index` chunk 不含 mermaid 代码） |
+| 输入框拖动上边沿 | 通过 | 真实应用中拖动分隔条：输入框 83px → 203px（内联 `height: 203px`），拖动中手柄高亮、松手后焦点回到输入框；`getComputedStyle(textarea).resize === 'none'`（无右下角手柄）；下限 68px、上限 `min(480, innerHeight*0.6)` 生效；`ArrowUp/Down` ±24px；双击复位回 83px |
+| 产物与进程名 | 通过 | `wails build -clean -trimpath -platform windows/amd64` 产出 `build/bin/asina_myaiui.exe`（`-clean` 已清掉旧的 `MyAIUI2.exe`）；PE 资源 `FileDescription=asina_myaiui`、`ProductName=asina_myaiui`、`ProductVersion=0.1.0` |
+| 窗口标题与应用标识 | 通过 | `MainWindowTitle=asina_myaiui`；进程树为 `asina_myaiui.exe` → `msedgewebview2.exe`（`--webview-exe-name=asina_myaiui.exe`、`--user-data-dir=…\asina_myaiui.exe\EBWebView`），命令行中不再出现旧名；嵌入清单 `assemblyIdentity` 为 `com.wails.asina_myaiui`（旧值 `com.wails.MyAIUI2` 在产物字节中已不存在） |
+| 单实例标识隔离 | 通过 | `UniqueId` 改为 `asina_myaiui-single-instance-v1`；E2E 期间新产物与在跑的旧 `MyAIUI2.exe` 未互相抢占（旧实例数据未受影响） |
+| 质量门禁 | 通过 | `go vet ./...`、`go build ./...`、`pnpm --dir frontend typecheck`、`pnpm --dir frontend build`、`wails build` 全部通过 |
+
+说明：`pwsh` 的 `(Get-Item).VersionInfo` 读不到本产物的版本资源（Wails 生成的 `VarFileInfo/Translation` 块导致解析失败），改用字节级检查确认资源内容正确；
+任务管理器/文件属性以 `FileDescription` 展示，即为 `asina_myaiui`，与进程名一致。
+
+复现脚本（都在 `temp/`，不进版本库）：`fake_provider.py`（假服务端，含 `/v1/responses` 与 `/log`）、`check_sync.go`（同步落库自证：`go run ./temp/check_sync.go`）、`smoke_responses.mjs`（Responses SSE 解析自证：`cd frontend && node ../temp/smoke_responses.mjs`，需先起假服务端）、`ui-harness/mock-bindings.js`（生产构建的 Wails 绑定替身，用 `page.evaluateOnNewDocument` 注入后可对真实前端产物做 DOM 断言）。
+
