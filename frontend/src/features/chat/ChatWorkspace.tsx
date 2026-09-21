@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { GitBranch, PlugZap } from 'lucide-react'
 import { Button, EmptyState } from '../../components/ui'
-import { useUiStore } from '../../app/uiStore'
+import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { copyToClipboard, useChatStore } from './chatStore'
 import { MessageList } from './MessageList'
 import { TextComposer } from './TextComposer'
@@ -31,7 +31,9 @@ export function ChatWorkspace(): ReactElement {
 
   const assistant = assistants.find((a) => a.ID === activeAssistantId)
   const topic = topics.find((t) => t.ID === activeTopicId)
-  const hasEnabledModel = models.some((m) => m.Enabled)
+  // 可用模型 = 模型启用且所属服务商启用；只有存在可用模型才允许发送/重新生成。
+  const hasUsableModel = selectUsableModels(models, providers).length > 0
+  const hasEnabledProvider = providers.some((p) => p.Enabled)
 
   const [draft, setDraft] = useState('')
   const [branchOpen, setBranchOpen] = useState(false)
@@ -49,7 +51,7 @@ export function ChatWorkspace(): ReactElement {
   }, [assistant?.ID, assistant?.WebSearchDefault, syncSearchDefault])
 
   const openProviders = () => openDrawer({ kind: 'providers' })
-  const providerGuide = !hasEnabledModel
+  const providerGuide = !hasUsableModel
 
   return (
     <div className="chat">
@@ -83,7 +85,7 @@ export function ChatWorkspace(): ReactElement {
         messages={messages}
         loading={loading}
         stream={stream}
-        canRegenerate={!generating && hasEnabledModel}
+        canRegenerate={!generating && hasUsableModel}
         onCopy={(text) => {
           void copyToClipboard(text)
         }}
@@ -102,7 +104,9 @@ export function ChatWorkspace(): ReactElement {
               description={
                 providers.length === 0
                   ? '添加一个 OpenAI 兼容的模型服务，同步模型后即可开始对话。'
-                  : '请在模型服务中启用或同步模型。'
+                  : hasEnabledProvider
+                    ? '请在模型服务中启用或同步模型。'
+                    : '模型服务已停用，请在「模型服务」中重新启用。'
               }
               action={
                 <Button variant="primary" onClick={openProviders}>

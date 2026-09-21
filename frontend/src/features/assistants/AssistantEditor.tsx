@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { appApi } from '../../bridge/appApi'
 import type { ModelDTO, SaveAssistantDTO } from '../../domain/dto'
-import { useUiStore } from '../../app/uiStore'
+import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { Button, ConfirmDialog, Drawer, Field, Input, Textarea, Toggle } from '../../components/ui'
 import './assistants.css'
 
@@ -44,11 +44,10 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // 仅已启用模型，按服务商名分组（组内按显示名排序）。
+  // 仅可用模型（自身启用 + 所属服务商启用），按服务商名分组（组内按显示名排序）。
   const modelGroups = useMemo<ModelGroup[]>(() => {
     const grouped = new Map<string, ModelDTO[]>()
-    for (const model of models) {
-      if (!model.Enabled) continue
+    for (const model of selectUsableModels(models, providers)) {
       const list = grouped.get(model.ProviderID)
       if (list) list.push(model)
       else grouped.set(model.ProviderID, [model])
@@ -64,7 +63,7 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
       .sort((a, b) => a.providerName.localeCompare(b.providerName, 'zh-Hans-CN'))
   }, [models, providers])
 
-  const enabledCount = modelGroups.reduce((total, group) => total + group.models.length, 0)
+  const usableCount = modelGroups.reduce((total, group) => total + group.models.length, 0)
 
   async function handleSave() {
     const trimmedName = name.trim()
@@ -72,6 +71,8 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
       showToast('请填写助手名称', 'error')
       return
     }
+    // 这里用全量 models 解析：服务商临时停用时保留原有绑定（重新启用后即可继续用），
+    // 只有模型已删除时才会清空，避免 ModelID 与 ProviderID 不一致。
     const model = modelId ? models.find((m) => m.ID === modelId) : undefined
     const input: SaveAssistantDTO = {
       ID: assistantId,
@@ -79,7 +80,7 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
       Emoji: emoji.trim() || EMOJI_FALLBACK,
       SystemPrompt: systemPrompt,
       ProviderID: model?.ProviderID ?? '',
-      ModelID: modelId,
+      ModelID: model?.ID ?? '',
       Temperature: temperature,
       TemperatureSet: temperatureSet,
       WebSearchDefault: webSearchDefault,
@@ -160,9 +161,9 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
         <Field
           label="默认模型"
           hint={
-            enabledCount > 0
-              ? '仅列出已启用的模型，按服务商分组；留空表示由对话页选择'
-              : '暂无已启用的模型，请先在「模型服务」中同步并启用模型'
+            usableCount > 0
+              ? '仅列出可用模型（模型与其所属模型服务都处于启用状态）；留空表示由对话页选择'
+              : '暂无可用模型：请先在「模型服务」中启用服务商并勾选模型'
           }
         >
           <select

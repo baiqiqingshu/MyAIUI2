@@ -1055,7 +1055,10 @@ CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_ord
 - 两种 SDK provider 共用 `createWailsFetch(provider.ID)` 与占位密钥，真实密钥仍由 Go 侧注入；`transport.ResolveEndpoint` 只需同 origin 相对路径，`/v1/responses` 无需新增白名单。
 - 无需改请求头白名单：`@ai-sdk/openai` 只在用户显式配置时发送 `OpenAI-Organization`/`OpenAI-Project`，本项目不发。
 - 图片模型对四种 provider 均走 `.imageModel()`（`imageEngine.ts` 未改动）。
-- Provider 表单新增「接口协议」Select，预设模板新增「OpenAI Responses API」；OpenAI 与 Responses 模板 BaseURL 相同，因此模板匹配改为按 `BaseURL + Kind` 比对。
+- Provider 表单新增「接口协议」Select（`openai-compatible｜openai｜openai-responses`，新建默认 `openai-compatible`）。
+  2026-09-22 修订：预设模板只做地址预填，**不再携带协议**——原先为表达 Responses 而增设的「OpenAI Responses API」模板已删除，
+  模板列表回到 `OpenAI｜DeepSeek｜OpenRouter｜Ollama｜LM Studio｜自定义（留空手动填写）`，协议统一由该下拉选择；
+  模板匹配回到「只按 BaseURL 比对」（协议是独立字段，不参与模板判定）。
 
 ### 25.3 产物与进程名 `asina_myaiui`
 
@@ -1094,3 +1097,20 @@ CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_ord
 - 不做 Azure OpenAI、Ollama 原生 `/api/tags`、Google/Anthropic 原生协议（仍为 P1）。
 - Mermaid 不做缩放/平移/导出图片，不做 `mindmap` 等需要额外布局引擎的图表（沿用 mermaid 默认按需加载）。
 - 输入框高度不持久化（重启回到默认 3 行）。
+
+## 26. 缺陷修复：停用模型服务后仍可选其模型（2026-09-22）
+
+**现象**：在「模型服务」里把服务商切换为停用后，对话页的模型下拉仍列出该服务商下已启用的模型；选中后发送才报「模型服务未启用」。
+
+**根因**：可用性判定分散在多处，且各写各的。
+
+| 位置 | 判定 |
+| --- | --- |
+| `TextComposer` 下拉 | 只看 `model.Enabled`，**漏了服务商开关** |
+| `AssistantEditor` 默认模型 | 只看 `model.Enabled`，同样漏了服务商开关 |
+| `ChatWorkspace` 空态/发送守卫 | `models.some(m => m.Enabled)`，停用整个服务商时空态与守卫都不生效 |
+| `chatStore.resolveTarget` | 模型与服务商都判了（发送前最终守卫生效，所以只是"选得到、发不出"） |
+
+**修复**：把判定收敛到唯一入口 `uiStore.selectUsableModels(models, providers)`（模型启用 且 所属服务商存在且启用），对话页下拉、助手设置的分组列表、空态/发送门禁、重新生成门禁全部改用它；`chatStore.resolveTarget` 保留自身校验作为发送前防线。附带两处一致性修正：助手保存时只在模型确实存在时写入 `ModelID`（避免 `ModelID` 与 `ProviderID` 不一致），空态文案区分「服务商已全部停用」与「有服务商但无可用模型」。
+
+**验收**：停用一个服务商后，其模型立即从对话下拉与助手默认模型列表中消失，下拉变为禁用的「暂无可用模型」，提示条出现「当前没有可用模型，无法继续发送」，发送按钮禁用；重新启用服务商后模型立即恢复可选。

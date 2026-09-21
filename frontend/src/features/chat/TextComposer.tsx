@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Select, Textarea, type SelectOption } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
-import { useUiStore } from '../../app/uiStore'
+import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { useChatStore } from './chatStore'
 import { SearchToggle } from '../search/SearchToggle'
 import type { SaveAssistantDTO } from '../../domain/dto'
@@ -53,12 +53,12 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
 
   const assistant = assistants.find((a) => a.ID === activeAssistantId)
 
-  const options: SelectOption[] = models
-    .filter((m) => m.Enabled)
-    .map((m) => ({
-      value: m.ID,
-      label: `${providers.find((p) => p.ID === m.ProviderID)?.Name ?? '未知服务'} / ${m.DisplayName}`,
-    }))
+  // 服务商被停用后，它的模型必须立刻从下拉里消失（见 selectUsableModels 的契约）。
+  const usableModels = selectUsableModels(models, providers)
+  const options: SelectOption[] = usableModels.map((m) => ({
+    value: m.ID,
+    label: `${providers.find((p) => p.ID === m.ProviderID)?.Name ?? '未知服务'} / ${m.DisplayName}`,
+  }))
 
   const currentModelId = options.some((o) => o.value === assistant?.ModelID) ? (assistant?.ModelID ?? '') : ''
   const canSend = !generating && !disabled && value.trim().length > 0
@@ -127,7 +127,7 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
 
   const onModelChange = (modelId: string) => {
     if (!assistant) return
-    const model = models.find((m) => m.ID === modelId)
+    const model = usableModels.find((m) => m.ID === modelId)
     if (!model) return
     const input: SaveAssistantDTO = {
       ID: assistant.ID,

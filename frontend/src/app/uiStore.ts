@@ -11,7 +11,6 @@ import type {
 } from '../domain/dto'
 
 export type ToastKind = 'info' | 'success' | 'error'
-
 export interface ToastItem {
   id: string
   kind: ToastKind
@@ -31,6 +30,17 @@ const EMPTY_SEARCH: SearchSettingsDTO = {
   BaseURL: '',
   HasAPIKey: false,
   MaxResults: 5,
+}
+
+/**
+ * 可用于对话与助手绑定的模型：模型自身启用，且其模型服务存在且已启用。
+ * 停用服务商后，其模型必须立刻从对话页与助手设置的模型选择里消失——这是唯一判定入口，
+ * 不要再在组件里各写一遍 `m.Enabled` 过滤（曾因此在对话页漏掉服务商开关）。
+ */
+export function selectUsableModels(models: ModelDTO[], providers: ProviderDTO[]): ModelDTO[] {
+  return models.filter(
+    (model) => model.Enabled && providers.some((p) => p.ID === model.ProviderID && p.Enabled),
+  )
 }
 
 interface UiState {

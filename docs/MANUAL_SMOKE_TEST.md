@@ -124,6 +124,7 @@ UI 断言另在**生产构建**（`frontend/dist`，生产 CSP）上用注入绑
 | 已有模型状态不被同步覆盖 | 通过 | 二次同步 `added=0`、无新增面板；先前手工启用的模型仍为启用（`temp/check_sync.go`：`updated=3`、`enabled` 保持不变；`manual` 行全程未被触碰） |
 | `AddedIDs` 恒为数组 | 通过 | 失败/提前返回路径返回空切片，前端 `result.AddedIDs ?? []` 兜底；实测无 `null` |
 | 接口协议三选项 | 通过 | 表单字段顺序「预设模板 / 名称 / BaseURL / 接口协议 / API Key / 模型路径」；协议下拉为 `openai-compatible｜openai｜openai-responses`，提示「Responses 仅适用于支持 /v1/responses 的服务」；新建默认 `openai-compatible` |
+| 预设模板与协议互不耦合 | 通过 | 模板列表 = `OpenAI｜DeepSeek｜OpenRouter｜Ollama（本地，无需 Key）｜LM Studio（本地，无需 Key）｜自定义（留空手动填写）`（已删除冗余的「OpenAI Responses API」模板）；选 OpenAI 模板只填名称/地址，协议保持 `openai-compatible`；手动把协议改成 `openai-responses` 后模板选择与地址均不被改写（真机复核同上） |
 | `openai-compatible` 走 chat completions | 通过 | 端到端发送后假服务端 `/log` 记录 `POST /v1/chat/completions`，回答正常流式渲染（`【smoke-chat #1】上下文 1 条…`） |
 | `openai-responses` 走 Responses API | 通过 | 新建 `openai-responses` 服务商并同步启用模型后发送，`/log` 记录 `POST /v1/responses`（同一会话此前为 `/v1/chat/completions`），回答正常渲染（`【smoke-chat-2 #1】上下文 3 条…`） |
 | Responses SSE 解析 | 通过 | 事件字段按 SDK 解析器构造（`response.created` / `response.output_item.added` / `response.output_text.delta` / `response.output_item.done` / `response.completed`+usage），`temp/smoke_responses.mjs` 22/22 通过 |
@@ -140,4 +141,12 @@ UI 断言另在**生产构建**（`frontend/dist`，生产 CSP）上用注入绑
 任务管理器/文件属性以 `FileDescription` 展示，即为 `asina_myaiui`，与进程名一致。
 
 复现脚本（都在 `temp/`，不进版本库）：`fake_provider.py`（假服务端，含 `/v1/responses` 与 `/log`）、`check_sync.go`（同步落库自证：`go run ./temp/check_sync.go`）、`smoke_responses.mjs`（Responses SSE 解析自证：`cd frontend && node ../temp/smoke_responses.mjs`，需先起假服务端）、`ui-harness/mock-bindings.js`（生产构建的 Wails 绑定替身，用 `page.evaluateOnNewDocument` 注入后可对真实前端产物做 DOM 断言）。
+
+## 10. 已修复缺陷（2026-09-22）
+
+执行环境：生产构建（`frontend/dist`，生产 CSP）+ `temp/ui-harness/mock-bindings.js` 注入绑定替身驱动真实组件。
+
+| 现象 | 根因 | 修复 | 证据 |
+| --- | --- | --- | --- |
+| 在「模型服务」停用某服务商后，对话页模型下拉仍能选中该服务商下的模型，选完发送才提示「模型服务未启用」 | 可用性判定散落各处且规则不一致：`TextComposer` 与 `AssistantEditor` 只判 `model.Enabled`（漏服务商开关），`ChatWorkspace` 的 `models.some(m => m.Enabled)` 同样漏判，只有 `chatStore.resolveTarget` 判了服务商（所以表现为「选得到、发不出」） | 新增唯一判定入口 `uiStore.selectUsableModels(models, providers)`（模型启用 + 所属服务商存在且启用），对话下拉、助手默认模型分组、空态与发送/重新生成门禁统一改用它；`resolveTarget` 保留发送前防线；助手保存时只在模型存在时写 `ModelID`，空态文案区分「服务商全部停用」 | 生产构建替身会话：停用前下拉 = `[选择模型, 本地假服务 / smoke-chat]`；停用后 = `[暂无可用模型]` 且控件禁用、提示条「当前没有可用模型，无法继续发送」、发送按钮 `disabled=true`；助手设置「默认模型」= `[未选择]` + 提示「暂无可用模型：请先在「模型服务」中启用服务商并勾选模型」；重新启用后立即恢复。**真机复核**（`wails dev` 桥接 + 真实后端）：停用前 `[选择模型, 停用验证服务 / smoke-chat]` → 停用后 `[暂无可用模型]`（控件禁用）→ 重新启用后恢复；全量 `pnpm typecheck`/`pnpm build` 通过 |
 
