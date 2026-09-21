@@ -684,6 +684,41 @@ func (a *AppAPI) providerKey(p repository.Provider) (string, error) {
 	return plain, nil
 }
 
+// CopyProviderAPIKey 把已保存的 API Key 复制到系统剪贴板。
+//
+// 密钥依然不经过前端：绑定只返回 error，明文由 Go 直接交给剪贴板，
+// DTO 里仍只有 HasAPIKey（方案 §14.3），因此 JS/DevTools 拿不到密钥内容。
+func (a *AppAPI) CopyProviderAPIKey(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if err := validateUUID("模型服务 ID", id); err != nil {
+		return err
+	}
+	provider, err := a.providers.Get(strings.TrimSpace(id))
+	if err != nil {
+		return wrapRepoErr("读取模型服务失败", "模型服务不存在", err)
+	}
+	key, err := a.providerKey(provider)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(key) == "" {
+		return errors.New("该服务未配置 API Key")
+	}
+	return a.copyKeyToClipboard("模型服务", provider.ID, key)
+}
+
+// copyKeyToClipboard 写系统剪贴板。日志只记录目标标识，绝不记录密钥内容。
+func (a *AppAPI) copyKeyToClipboard(scope, targetID, key string) error {
+	if err := runtime.ClipboardSetText(a.ctx, key); err != nil {
+		logging.Errorf("复制%s密钥失败: %s", scope, logging.Redact(err.Error()))
+		return errors.New("写入剪贴板失败")
+	}
+	logging.Infof("已复制%s密钥到剪贴板 (target=%s)", scope, targetID)
+	return nil
+}
+
 func modelPathOf(p repository.Provider) string {
 	path := strings.TrimSpace(p.ModelPath)
 	if path == "" {
@@ -1674,6 +1709,21 @@ func (a *AppAPI) getSearchSettings() (SearchSettingsDTO, error) {
 	}
 	settings.HasAPIKey = hasKey
 	return settings, nil
+}
+
+// CopySearchAPIKey 把已保存的搜索服务 API Key 复制到系统剪贴板；同样不经前端返回明文。
+func (a *AppAPI) CopySearchAPIKey() error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	key, ok, err := a.loadSearchKey()
+	if err != nil {
+		return err
+	}
+	if !ok || strings.TrimSpace(key) == "" {
+		return errors.New("尚未配置搜索服务 API Key")
+	}
+	return a.copyKeyToClipboard("搜索服务", defaultSearchService, key)
 }
 
 // SaveSearchSettings 保存搜索配置；密钥与 provider 同规则（留空保留、勾选清除）。

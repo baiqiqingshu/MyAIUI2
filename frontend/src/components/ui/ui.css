@@ -140,6 +140,18 @@
   color: var(--text-secondary);
 }
 
+/* 字段内的横排（输入框 + 行内按钮），例如「API Key」右侧的复制按钮。 */
+.ui-field__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-field__row > .ui-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .ui-field__hint {
   font-size: 12px;
   color: var(--text-tertiary);

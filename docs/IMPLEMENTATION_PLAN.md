@@ -1114,3 +1114,22 @@ CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_ord
 **修复**：把判定收敛到唯一入口 `uiStore.selectUsableModels(models, providers)`（模型启用 且 所属服务商存在且启用），对话页下拉、助手设置的分组列表、空态/发送门禁、重新生成门禁全部改用它；`chatStore.resolveTarget` 保留自身校验作为发送前防线。附带两处一致性修正：助手保存时只在模型确实存在时写入 `ModelID`（避免 `ModelID` 与 `ProviderID` 不一致），空态文案区分「服务商已全部停用」与「有服务商但无可用模型」。
 
 **验收**：停用一个服务商后，其模型立即从对话下拉与助手默认模型列表中消失，下拉变为禁用的「暂无可用模型」，提示条出现「当前没有可用模型，无法继续发送」，发送按钮禁用；重新启用服务商后模型立即恢复可选。
+
+## 27. 增量：API Key 可复制但不可见（2026-09-22）
+
+**需求**：密钥在界面上始终不可见，但用户需要能把它取出来（换机、换客户端、复核配置时复用）。
+
+**决策**：明文**不经过前端**。新增两个绑定（`internal/api/app_api.go`）：
+
+| 绑定 | 说明 |
+| --- | --- |
+| `CopyProviderAPIKey(providerID) error` | 校验 UUID → 读 provider → DPAPI 解密 → 写入系统剪贴板 |
+| `CopySearchAPIKey() error` | 同上，取搜索服务的密钥 |
+
+- Go 侧解密后直接调用 `runtime.ClipboardSetText(ctx, key)`，绑定**只返回 error**：密钥不会进入 JS 内存、DOM、DevTools 或前端日志。
+- DTO 规则不变（§14.3）：`ProviderDTO`/`SearchSettingsDTO` 仍然只有 `HasAPIKey`，没有取回明文的通道。
+- 日志只记录「已复制 X 密钥到剪贴板 (target=…)」，不记录密钥内容；剪贴板写入失败也只回通用错误文案。
+- UI：模型服务表单与联网搜索设置里，仅在 `HasAPIKey` 为真时显示「复制密钥」按钮（表单内 `key` 字段右侧，`.ui-field__row` 横排）；点击后提示「API Key 已复制到剪贴板」。密钥输入框保持 `password` 且始终为空（留空 = 不修改），提示语补充「密钥不可见，可用「复制密钥」取出」。
+- 边界说明：剪贴板是**用户显式触发**的导出通道（与 §24.1 的「另存为 Markdown」同级）。密钥一旦进入系统剪贴板，就受操作系统剪贴板历史与其它程序读取的约束——这是「可复制」的固有代价，不接受该代价时不要点击该按钮。
+
+**验收**：两个测试密钥经 UI 保存后，点击「复制密钥」用 `Get-Clipboard` 读回的内容与写入值完全一致（`sk-copy-check-9f3a`、`searx-copy-check-42`）；`document.documentElement.outerHTML` 与数据库文件（含 `-wal`/`-shm`）字节级搜索均无明文；无密钥时不显示该按钮。

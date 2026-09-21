@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Copy } from 'lucide-react'
 import { Button, Field, Input, Select, Toggle } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
@@ -65,6 +66,7 @@ export function ProviderForm({
   const [clearAPIKey, setClearAPIKey] = useState(false)
   const [enabled, setEnabled] = useState(provider?.Enabled ?? true)
   const [saving, setSaving] = useState(false)
+  const [copyingKey, setCopyingKey] = useState(false)
 
   const template = TEMPLATES.find((t) => t.id === templateId)
   const hasStoredKey = !!provider?.HasAPIKey
@@ -76,6 +78,21 @@ export function ProviderForm({
     setName((current) => current || next.displayName)
     setBaseURL(next.baseURL)
     setModelPath(next.modelPath)
+  }
+
+  async function handleCopyKey() {
+    const id = provider?.ID
+    if (!id) return
+    setCopyingKey(true)
+    try {
+      // 后端只返回是否成功，密钥本身不经过前端。
+      await appApi.CopyProviderAPIKey(id)
+      showToast('API Key 已复制到剪贴板', 'success')
+    } catch (error) {
+      showToast(`复制失败：${describeError(error)}`, 'error')
+    } finally {
+      setCopyingKey(false)
+    }
   }
 
   async function handleSave() {
@@ -114,7 +131,7 @@ export function ProviderForm({
   }
 
   const keyHint = hasStoredKey
-    ? '已配置密钥，留空表示不修改'
+    ? '已配置密钥，留空表示不修改；密钥不可见，可用「复制密钥」取出'
     : template?.local
       ? '本地服务通常无需 API Key'
       : '可留空；密钥仅保存在本机（DPAPI 加密）'
@@ -134,13 +151,27 @@ export function ProviderForm({
         <Select value={kind} onChange={setKind} options={KIND_OPTIONS} />
       </Field>
       <Field label="API Key" hint={keyHint}>
-        <Input
-          type="password"
-          value={apiKey}
-          onChange={setAPIKey}
-          placeholder={hasStoredKey ? '已配置，留空表示不修改' : '请输入 API Key（可留空）'}
-          disabled={clearAPIKey}
-        />
+        <div className="ui-field__row">
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={setAPIKey}
+            placeholder={hasStoredKey ? '已配置，留空表示不修改' : '请输入 API Key（可留空）'}
+            disabled={clearAPIKey}
+          />
+          {hasStoredKey ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={copyingKey}
+              title="把已保存的密钥复制到系统剪贴板（密钥不会显示在界面上）"
+              onClick={handleCopyKey}
+            >
+              <Copy size={13} />
+              复制密钥
+            </Button>
+          ) : null}
+        </div>
       </Field>
       {hasStoredKey ? (
         <Toggle checked={clearAPIKey} onChange={setClearAPIKey} label="清除已保存的密钥" />

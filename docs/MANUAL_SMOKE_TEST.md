@@ -150,3 +150,19 @@ UI 断言另在**生产构建**（`frontend/dist`，生产 CSP）上用注入绑
 | --- | --- | --- | --- |
 | 在「模型服务」停用某服务商后，对话页模型下拉仍能选中该服务商下的模型，选完发送才提示「模型服务未启用」 | 可用性判定散落各处且规则不一致：`TextComposer` 与 `AssistantEditor` 只判 `model.Enabled`（漏服务商开关），`ChatWorkspace` 的 `models.some(m => m.Enabled)` 同样漏判，只有 `chatStore.resolveTarget` 判了服务商（所以表现为「选得到、发不出」） | 新增唯一判定入口 `uiStore.selectUsableModels(models, providers)`（模型启用 + 所属服务商存在且启用），对话下拉、助手默认模型分组、空态与发送/重新生成门禁统一改用它；`resolveTarget` 保留发送前防线；助手保存时只在模型存在时写 `ModelID`，空态文案区分「服务商全部停用」 | 生产构建替身会话：停用前下拉 = `[选择模型, 本地假服务 / smoke-chat]`；停用后 = `[暂无可用模型]` 且控件禁用、提示条「当前没有可用模型，无法继续发送」、发送按钮 `disabled=true`；助手设置「默认模型」= `[未选择]` + 提示「暂无可用模型：请先在「模型服务」中启用服务商并勾选模型」；重新启用后立即恢复。**真机复核**（`wails dev` 桥接 + 真实后端）：停用前 `[选择模型, 停用验证服务 / smoke-chat]` → 停用后 `[暂无可用模型]`（控件禁用）→ 重新启用后恢复；全量 `pnpm typecheck`/`pnpm build` 通过 |
 
+
+## 11. 增量：API Key 可复制但不可见（2026-09-22）
+
+执行环境：`wails dev` 桥接会话（真实 Go 绑定、真实 DPAPI、真实 SQLite）+ 隔离数据目录 `LOCALAPPDATA=<temp>/key-check`；剪贴板用 PowerShell `Get-Clipboard` 读回比对。
+
+| 项 | 结果 | 证据 |
+| --- | --- | --- |
+| 无密钥时无复制入口 | 通过 | 新建服务商（名称/地址已填、尚未保存密钥）的表单中不存在「复制密钥」按钮 |
+| 有密钥时按钮出现且密钥不可见 | 通过 | 编辑已保存密钥的服务商：密钥框 `type=password`、值为空，提示「已配置密钥，留空表示不修改；密钥不可见，可用「复制密钥」取出」；`document.documentElement.outerHTML` 与 `document.body.textContent` 均不含密钥明文 |
+| 剪贴板确实拿到模型服务密钥 | 通过 | 点击「复制密钥」后 toast「API Key 已复制到剪贴板」；`Get-Clipboard` = `sk-copy-check-9f3a`（长度 18，与写入值完全一致） |
+| 搜索服务密钥同样可复制 | 通过 | 联网搜索设置保存 `searx-copy-check-42` 后重开对话框出现「复制密钥」；点击后 `Get-Clipboard` = `searx-copy-check-42` |
+| 密钥仍以 DPAPI 落盘 | 通过 | 隔离数据目录下 `app.db` / `app.db-wal` / `app.db-shm` 三文件字节级搜索两个测试密钥：均未命中明文 |
+| 绑定不返回明文 | 通过 | `CopyProviderAPIKey(id) error`、`CopySearchAPIKey() error` 只返回错误；`ProviderDTO`/`SearchSettingsDTO` 仍只有 `HasAPIKey` |
+| 质量门禁 | 通过 | `go vet ./...`、`go build ./...`、`pnpm --dir frontend typecheck`、`pnpm --dir frontend build`、`wails build -clean -trimpath` 全部通过 |
+
+注意：剪贴板是用户显式触发的导出通道（同 §24.1 的「另存为 Markdown」）。密钥进入系统剪贴板后会受剪贴板历史与其它程序读取的约束；冒烟脚本在用完后已清空剪贴板。

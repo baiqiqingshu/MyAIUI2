@@ -61,6 +61,8 @@ export const appApi = {
   SaveManualModel: (input: SaveModelDTO) => call<ModelDTO>('SaveManualModel', input),
   SetModelEnabled: (id: string, enabled: boolean) => call<void>('SetModelEnabled', id, enabled),
   DeleteModel: (id: string) => call<void>('DeleteModel', id),
+  // 复制密钥：明文只在本机 Go 进程内解密并直接写入系统剪贴板，前端拿不到密钥内容。
+  CopyProviderAPIKey: (id: string) => call<void>('CopyProviderAPIKey', id),
 
   ListAssistants: () => call<AssistantDTO[]>('ListAssistants'),
   SaveAssistant: (input: SaveAssistantDTO) => call<AssistantDTO>('SaveAssistant', input),
@@ -100,6 +102,7 @@ export const appApi = {
   GetSearchSettings: () => call<SearchSettingsDTO>('GetSearchSettings'),
   SaveSearchSettings: (input: SaveSearchSettingsDTO) =>
     call<SearchSettingsDTO>('SaveSearchSettings', input),
+  CopySearchAPIKey: () => call<void>('CopySearchAPIKey'),
   Search: (input: SearchRequestDTO) => call<SearchResponseDTO>('Search', input),
 
   StartProviderRequest: (input: ProviderRequestDTO) =>

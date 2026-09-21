@@ -136,9 +136,9 @@ type SaveAssistantDTO struct {
 // ---------------------------------------------------------------- topics
 
 type TopicDTO struct {
-	ID          string
-	AssistantID string
-	Title       string
+	ID           string
+	AssistantID  string
+	Title        string
 	MessageCount int
 	// ActiveNodeID 是当前活动分支的末端消息 ID；空字符串表示该话题还没有消息。
 	ActiveNodeID string
@@ -164,7 +164,7 @@ type MessageDTO struct {
 	ProviderID    string
 	ModelRemoteID string
 	// ParentID 指向同一话题中的父消息；空字符串表示该话题的根节点。
-	ParentID string
+	ParentID  string
 	SortOrder int
 	// SiblingCount/SiblingIndex 描述同一父节点下的变体关系：无变体时为 1/1。
 	SiblingCount int

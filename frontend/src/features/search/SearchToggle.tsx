@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Globe } from 'lucide-react'
+import { Copy, Globe } from 'lucide-react'
 import './search.css'
 import { Button, Field, Input, Modal, Select, Toggle } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
@@ -48,6 +48,7 @@ export function SearchSettingsDialog() {
   const [clearAPIKey, setClearAPIKey] = useState(false)
   const [maxResults, setMaxResults] = useState(search.MaxResults || 5)
   const [saving, setSaving] = useState(false)
+  const [copyingKey, setCopyingKey] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -90,6 +91,20 @@ export function SearchSettingsDialog() {
     }
   }
 
+  async function handleCopyKey() {
+    setCopyingKey(true)
+    try {
+      // 与模型服务同规则：明文只在 Go 进程内解密并直接写入系统剪贴板。
+      await appApi.CopySearchAPIKey()
+      showToast('搜索服务 API Key 已复制到剪贴板', 'success')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`复制失败：${message}`, 'error')
+    } finally {
+      setCopyingKey(false)
+    }
+  }
+
   return (
     <Modal
       open={open}
@@ -117,15 +132,33 @@ export function SearchSettingsDialog() {
         </Field>
         <Field
           label="API Key（可选）"
-          hint={search.HasAPIKey ? '已配置密钥，留空表示不修改' : '自建 SearXNG 通常无需密钥'}
+          hint={
+            search.HasAPIKey
+              ? '已配置密钥，留空表示不修改；密钥不可见，可用「复制密钥」取出'
+              : '自建 SearXNG 通常无需密钥'
+          }
         >
-          <Input
-            type="password"
-            value={apiKey}
-            onChange={setAPIKey}
-            placeholder={search.HasAPIKey ? '已配置，留空表示不修改' : '可留空'}
-            disabled={clearAPIKey}
-          />
+          <div className="ui-field__row">
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={setAPIKey}
+              placeholder={search.HasAPIKey ? '已配置，留空表示不修改' : '可留空'}
+              disabled={clearAPIKey}
+            />
+            {search.HasAPIKey ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={copyingKey}
+                title="把已保存的密钥复制到系统剪贴板（密钥不会显示在界面上）"
+                onClick={handleCopyKey}
+              >
+                <Copy size={13} />
+                复制密钥
+              </Button>
+            ) : null}
+          </div>
         </Field>
         {search.HasAPIKey ? (
           <Toggle checked={clearAPIKey} onChange={setClearAPIKey} label="清除已保存的密钥" />
