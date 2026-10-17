@@ -1,10 +1,11 @@
 import { Globe, Send, Square } from 'lucide-react'
 import clsx from 'clsx'
-import { useEffect, useRef, useState } from 'react'
-import { Button, Select, Textarea, type SelectOption } from '../../components/ui'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Button, Textarea } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { useChatStore } from './chatStore'
+import { ModelSelect } from './ModelSelect'
 import type { SaveAssistantDTO } from '../../domain/dto'
 
 export interface TextComposerProps {
@@ -45,8 +46,10 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
   const stop = useChatStore((s) => s.stop)
 
   const rootRef = useRef<HTMLDivElement>(null)
-  /* null＝沿用 rows={3} 的自然高度；只有用户调过高度后才写死像素值。 */
+  /* null＝沿用 rows={3} 的自然高度（首帧测量前）；之后由自动增高逻辑写入像素值。 */
   const [inputHeight, setInputHeight] = useState<number | null>(null)
+  /* 手动拖动得到的高度下限（null＝没拖过）：自动增高只把它当最小值，内容更高仍可顶到上限。 */
+  const [manualHeight, setManualHeight] = useState<number | null>(null)
   const [resizing, setResizing] = useState(false)
   const dragRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null)
   const selectLockedRef = useRef(false)
@@ -55,12 +58,10 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
 
   // 服务商被停用后，它的模型必须立刻从下拉里消失（见 selectUsableModels 的契约）。
   const usableModels = selectUsableModels(models, providers)
-  const options: SelectOption[] = usableModels.map((m) => ({
-    value: m.ID,
-    label: `${providers.find((p) => p.ID === m.ProviderID)?.Name ?? '未知服务'} / ${m.DisplayName}`,
-  }))
 
-  const currentModelId = options.some((o) => o.value === assistant?.ModelID) ? (assistant?.ModelID ?? '') : ''
+  const currentModelId = usableModels.some((m) => m.ID === assistant?.ModelID)
+    ? (assistant?.ModelID ?? '')
+    : ''
   const canSend = !generating && !disabled && value.trim().length > 0
 
   const lockTextSelection = (locked: boolean) => {
@@ -77,9 +78,26 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
   /* 拖动中指针会划过消息区，锁住文本选择；组件在拖动中卸载也要恢复。 */
   useEffect(() => () => lockTextSelection(false), [])
 
+  /* 内容驱动自动增高：先放开高度量 scrollHeight（含内边距、不含边框），
+     与手动下限取大后夹进 [MIN_INPUT_HEIGHT, maxInputHeight()]。发送清空后
+     内容自然回落到 MIN（或手动下限）。 */
+  useLayoutEffect(() => {
+    const el = rootRef.current?.querySelector('textarea')
+    if (!el) return
+    const prev = el.style.height
+    el.style.height = 'auto'
+    // auto 高（rows=3 自然高）下无横向滚动条，offsetHeight-clientHeight 即上下边框
+    const content = el.scrollHeight + (el.offsetHeight - el.clientHeight)
+    el.style.height = prev
+    setInputHeight(clampInputHeight(Math.max(content, manualHeight ?? MIN_INPUT_HEIGHT)))
+  }, [value, manualHeight])
+
   /* 窗口变矮后原高度可能超出上限，重新夹回区间。 */
   useEffect(() => {
-    const onWindowResize = () => setInputHeight((prev) => (prev === null ? prev : clampInputHeight(prev)))
+    const onWindowResize = () => {
+      setManualHeight((prev) => (prev === null ? prev : clampInputHeight(prev)))
+      setInputHeight((prev) => (prev === null ? prev : clampInputHeight(prev)))
+    }
     window.addEventListener('resize', onWindowResize)
     return () => window.removeEventListener('resize', onWindowResize)
   }, [])
@@ -101,8 +119,8 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
   const onResizeMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
-    /* 向上拖（clientY 变小）＝变高。 */
-    setInputHeight(clampInputHeight(drag.startHeight + (drag.startY - event.clientY)))
+    /* 向上拖（clientY 变小）＝变高；拖出的是手动下限，内容更高时仍以内容为准。 */
+    setManualHeight(clampInputHeight(drag.startHeight + (drag.startY - event.clientY)))
   }
 
   const onResizeEnd = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -122,7 +140,7 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
     event.preventDefault()
     const inputEl = rootRef.current?.querySelector('textarea')
     const base = inputHeight ?? inputEl?.offsetHeight ?? MIN_INPUT_HEIGHT
-    setInputHeight(clampInputHeight(base + (event.key === 'ArrowUp' ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP)))
+    setManualHeight(clampInputHeight(base + (event.key === 'ArrowUp' ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP)))
   }
 
   const onModelChange = (modelId: string) => {
@@ -166,17 +184,18 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
         onPointerCancel={onResizeEnd}
         onLostPointerCapture={onResizeEnd}
         onKeyDown={onResizeKeyDown}
-        onDoubleClick={() => setInputHeight(null)}
+        onDoubleClick={() => setManualHeight(null)}
       >
         <span className="chat-composer__resize-grip" aria-hidden="true" />
       </div>
       <div className="chat-composer__toolbar">
-        <Select
+        <ModelSelect
+          models={usableModels}
+          providers={providers}
           value={currentModelId}
           onChange={onModelChange}
-          options={options}
-          disabled={generating || options.length === 0 || !assistant}
-          placeholder={options.length === 0 ? '暂无可用模型' : '选择模型'}
+          disabled={generating || usableModels.length === 0 || !assistant}
+          placeholder={usableModels.length === 0 ? '暂无可用模型' : '选择模型'}
         />
         <button
           type="button"

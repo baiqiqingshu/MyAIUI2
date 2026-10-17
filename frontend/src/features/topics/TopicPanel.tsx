@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Folder,
   FolderPlus,
+  ListChecks,
   Pencil,
   Plus,
   Star,
@@ -20,7 +21,7 @@ import {
 } from '../../app/layoutStore'
 import { useUiStore } from '../../app/uiStore'
 import { useChatStore } from '../chat/chatStore'
-import { ConfirmDialog, EmptyState, IconButton } from '../../components/ui'
+import { Button, ConfirmDialog, EmptyState, IconButton } from '../../components/ui'
 import { ExportMarkdownDialog } from './ExportMarkdownDialog'
 import { TopicDeleteConfirm, TopicRow } from './TopicActions'
 import './topics.css'
@@ -122,6 +123,10 @@ export function TopicPanel() {
   const [resizing, setResizing] = useState(false)
   const resizeDragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
   const selectLockedRef = useRef(false)
+  // 批量管理：多选态开关 + 勾选的话题 ID 集（组件局部状态，不进 store）。
+  const [multiSelect, setMultiSelect] = useState(false)
+  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const folderById = useMemo(() => new Map(folders.map((f) => [f.ID, f])), [folders])
   const favFolders = useMemo(() => folders.filter((f) => f.Zone === ZONE_FAV), [folders])
@@ -139,6 +144,18 @@ export function TopicPanel() {
     [topics, normalFolderIds],
   )
   const runningSet = useMemo(() => new Set(runningTopicIds), [runningTopicIds])
+  // 勾选集中仍存活的话题（勾选后话题被别处删除时，计数与删除都按存活话题算）。
+  const selectedTopicIds = useMemo(
+    () => topics.filter((t) => checkedIds.has(t.ID)).map((t) => t.ID),
+    [topics, checkedIds],
+  )
+  const allChecked = topics.length > 0 && selectedTopicIds.length === topics.length
+
+  // 切换助手后勾选集无意义，连同多选态一起退出。
+  useEffect(() => {
+    setMultiSelect(false)
+    setCheckedIds(new Set())
+  }, [activeAssistantId])
 
   function topicsInFolder(folder: TopicFolderDTO): TopicDTO[] {
     const favorite = folder.Zone === ZONE_FAV
@@ -168,6 +185,76 @@ export function TopicPanel() {
       cursor = folderById.get(cursor)?.ParentID ?? ''
     }
     return false
+  }
+
+  // ---------------------------------------------------------------- 批量选择
+
+  /** 递归收集目录内全部话题 ID：本目录话题 + 所有嵌套子目录的话题（同分区）。 */
+  function descendantTopicIds(folder: TopicFolderDTO): string[] {
+    const ids: string[] = []
+    const seen = new Set<string>()
+    const walk = (current: TopicFolderDTO) => {
+      if (seen.has(current.ID)) return // 防御：ParentID 成环时截断
+      seen.add(current.ID)
+      for (const topic of topicsInFolder(current)) ids.push(topic.ID)
+      for (const sub of childFoldersOf(current.Zone, current.ID)) walk(sub)
+    }
+    walk(folder)
+    return ids
+  }
+
+  function toggleTopicChecked(topicId: string, checked: boolean) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(topicId)
+      else next.delete(topicId)
+      return next
+    })
+  }
+
+  /** 目录勾选 = 全选/取消其内全部话题（含子孙目录），不代表勾选目录本身。 */
+  function toggleFolderChecked(folder: TopicFolderDTO) {
+    const ids = descendantTopicIds(folder)
+    setCheckedIds((prev) => {
+      const next = new Set(prev)
+      const everyChecked = ids.length > 0 && ids.every((id) => next.has(id))
+      for (const id of ids) {
+        if (everyChecked) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
+  }
+
+  function exitMultiSelect() {
+    setMultiSelect(false)
+    setCheckedIds(new Set())
+  }
+
+  /** 「全选/清空」：勾上当前助手全部话题；已全部勾选时清空。 */
+  function handleSelectAllToggle() {
+    setCheckedIds(allChecked ? new Set() : new Set(topics.map((t) => t.ID)))
+  }
+
+  /* 批量删除：逐个 DeleteTopic（后端连带删消息），activeTopicId 被删时
+     refreshTopics→loadTopics 自动落到剩余首个话题（空助手时 Go 端 ensure 语义兜底）。 */
+  async function handleBatchDelete() {
+    const ids = selectedTopicIds
+    if (ids.length === 0) return
+    setBatchDeleting(true)
+    try {
+      const results = await Promise.allSettled(ids.map((id) => appApi.DeleteTopic(id)))
+      const failed = results.filter((r) => r.status === 'rejected').length
+      await Promise.all([refreshTopics(), refreshFolders()])
+      if (failed > 0) {
+        showToast(`已删除 ${ids.length - failed} 个话题，${failed} 个删除失败`, 'error')
+      } else {
+        showToast(`已删除 ${ids.length} 个话题`, 'success')
+      }
+      exitMultiSelect()
+    } finally {
+      setBatchDeleting(false)
+    }
   }
 
   async function handleCreate() {
@@ -489,6 +576,9 @@ export function TopicPanel() {
         running={runningSet.has(topic.ID)}
         indent={indentOf(depth)}
         dropPos={hint}
+        selectable={multiSelect}
+        checked={checkedIds.has(topic.ID)}
+        onCheckedChange={(checked) => toggleTopicChecked(topic.ID, checked)}
         onSelect={selectTopic}
         onRequestDelete={setPendingDelete}
         onRequestExport={setPendingExport}
@@ -520,19 +610,40 @@ export function TopicPanel() {
     const children = childFoldersOf(zone, folder.ID)
     const folderTopics = topicsInFolder(folder)
     const renaming = renamingId === folder.ID
+    // 目录勾选状态：仅多选态下计算（递归子孙话题），部分勾选显示半选。
+    const descIds = multiSelect ? descendantTopicIds(folder) : []
+    const descChecked = descIds.reduce((n, id) => (checkedIds.has(id) ? n + 1 : 0), 0)
+    const folderAllChecked = descIds.length > 0 && descChecked === descIds.length
+    const folderIndeterminate = descChecked > 0 && descChecked < descIds.length
 
     return (
       <div key={folder.ID} className="topic-folder-block">
         <div
           className={clsx('topic-folder', dropHint === `folder:${folder.ID}` && 'is-drop')}
           style={{ paddingLeft: indentOf(depth) }}
-          draggable={!renaming}
+          draggable={!renaming && !multiSelect}
           onDragStart={(event) => writeDrag(event, { kind: 'folder', id: folder.ID })}
           onDragEnd={() => setDropHint('')}
           onDragOver={(event) => handleDragOver(event, `folder:${folder.ID}`, 'topic', 'folder')}
           onDragLeave={handleDragLeave}
           onDrop={(event) => handleDropOnFolder(event, folder)}
         >
+          {multiSelect ? (
+            <input
+              type="checkbox"
+              className="topic-folder__check"
+              title="全选/取消该目录内全部话题"
+              aria-label={`选择目录 ${folder.Name} 内全部话题`}
+              checked={folderAllChecked}
+              disabled={descIds.length === 0}
+              ref={(el) => {
+                // 原生 checkbox 的半选态只能走 DOM 属性
+                if (el) el.indeterminate = folderIndeterminate
+              }}
+              onChange={() => toggleFolderChecked(folder)}
+              onClick={(event) => event.stopPropagation()}
+            />
+          ) : null}
           <button
             type="button"
             className="topic-folder__chevron"
@@ -606,6 +717,17 @@ export function TopicPanel() {
         <span className="topic-panel__title">话题</span>
         <span className="topic-panel__head-actions">
           <IconButton
+            title={multiSelect ? '退出批量管理' : '批量管理'}
+            active={multiSelect}
+            onClick={() => {
+              if (multiSelect) exitMultiSelect()
+              else setMultiSelect(true)
+            }}
+            disabled={!activeAssistantId}
+          >
+            <ListChecks size={15} />
+          </IconButton>
+          <IconButton
             title="新建话题"
             onClick={handleCreate}
             disabled={creating || !activeAssistantId}
@@ -665,6 +787,33 @@ export function TopicPanel() {
           ) : null}
         </section>
       </div>
+
+      {/* 批量管理操作条：多选态下浮出，删除对已选话题逐个 DeleteTopic */}
+      {multiSelect ? (
+        <div className="topic-batch">
+          <span className="topic-batch__count">已选 {selectedTopicIds.length} 个话题</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleSelectAllToggle}
+            disabled={batchDeleting || topics.length === 0}
+          >
+            {allChecked ? '清空' : '全选'}
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => void handleBatchDelete()}
+            loading={batchDeleting}
+            disabled={selectedTopicIds.length === 0}
+          >
+            删除
+          </Button>
+          <Button size="sm" variant="ghost" onClick={exitMultiSelect} disabled={batchDeleting}>
+            完成
+          </Button>
+        </div>
+      ) : null}
 
       {/* 右缘拖宽把手：命中区 8px，hover/拖动中露 accent 指示条 */}
       <div

@@ -367,6 +367,43 @@
   color: var(--text-tertiary);
 }
 
+/* ---------------------------------------------------------------- 批量管理 */
+
+/* 多选态行首复选框：话题行与目录行共用同一控件观感 */
+.topic-item__check,
+.topic-folder__check {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* 多选态下勾选的话题行给一层弱高亮，与激活态（accent 边条）区分 */
+.topic-item.is-selectable:has(.topic-item__check:checked) {
+  background: var(--accent-soft);
+}
+
+/* 底部批量操作条：多选态下在 list 之后浮出 */
+.topic-batch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
+}
+
+.topic-batch__count {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------------------------------------------------------- 导出为 Markdown */
 
 .export-dialog__status {

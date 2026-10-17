@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
-import { GitBranch, Maximize2, Minimize2, PlugZap } from 'lucide-react'
+import { GitBranch, ListChecks, Maximize2, Minimize2, PlugZap } from 'lucide-react'
 import clsx from 'clsx'
 import { Button, EmptyState, IconButton } from '../../components/ui'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { useLayoutStore } from '../../app/layoutStore'
 import { copyToClipboard, EMPTY_SESSION, useChatStore } from './chatStore'
+import { collectSubtreeIds } from '../../domain/message'
 import { MessageList } from './MessageList'
 import { MessageDots } from './MessageDots'
 import { TextComposer } from './TextComposer'
@@ -28,6 +29,7 @@ export function ChatWorkspace(): ReactElement {
   const send = useChatStore((s) => s.send)
   const regenerate = useChatStore((s) => s.regenerate)
   const editAndResend = useChatStore((s) => s.editAndResend)
+  const deleteMessages = useChatStore((s) => s.deleteMessages)
   const syncSearchDefault = useChatStore((s) => s.syncSearchDefault)
   // 布局偏好：消息列铺满宽度开关（layoutStore 持久化，仅 UI 偏好）
   const chatFullWidth = useLayoutStore((s) => s.chatFullWidth)
@@ -41,6 +43,9 @@ export function ChatWorkspace(): ReactElement {
 
   const [draft, setDraft] = useState('')
   const [branchOpen, setBranchOpen] = useState(false)
+  /* 批量管理态：勾选集合为「行首勾选 = 连带后代」展开后的 id 并集（含不可见分支节点）。 */
+  const [selectMode, setSelectMode] = useState(false)
+  const [checkedSet, setCheckedSet] = useState<ReadonlySet<string>>(() => new Set<string>())
   /* 消息滚动容器：同时交给 MessageList（贴底）与 MessageDots（观察/定位）。 */
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -50,6 +55,8 @@ export function ChatWorkspace(): ReactElement {
 
   useEffect(() => {
     setDraft('')
+    setSelectMode(false)
+    setCheckedSet(new Set())
   }, [activeTopicId])
 
   useEffect(() => {
@@ -58,6 +65,48 @@ export function ChatWorkspace(): ReactElement {
 
   const openProviders = () => setMainView('models')
   const providerGuide = !hasUsableModel
+
+  /* 勾选某条 = 连带勾选它的全部后代（按 tree.Nodes 的 ParentID 递归；
+     tree 缺失时 collectSubtreeIds 退化为只含本行）。 */
+  const toggleCheck = (id: string) => {
+    const ids = collectSubtreeIds(tree?.Nodes, id)
+    setCheckedSet((prev) => {
+      const next = new Set(prev)
+      if (prev.has(id)) ids.forEach((sub) => next.delete(sub))
+      else ids.forEach((sub) => next.add(sub))
+      return next
+    })
+  }
+
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    setCheckedSet(new Set())
+  }
+
+  // 流式行不可勾选：正在生成中的消息与流式占位行不参与「全选」。
+  const checkableIds = messages
+    .filter((m) => m.ID !== stream?.messageId && m.Status !== 'streaming')
+    .map((m) => m.ID)
+  const allChecked = checkableIds.length > 0 && checkableIds.every((id) => checkedSet.has(id))
+
+  const toggleCheckAll = () => {
+    if (allChecked) {
+      setCheckedSet(new Set())
+      return
+    }
+    const next = new Set<string>()
+    for (const id of checkableIds) {
+      for (const sub of collectSubtreeIds(tree?.Nodes, id)) next.add(sub)
+    }
+    setCheckedSet(next)
+  }
+
+  const deleteChecked = () => {
+    const ids = Array.from(checkedSet)
+    if (ids.length === 0) return
+    exitSelectMode()
+    void deleteMessages(ids)
+  }
 
   return (
     <div className={clsx('chat', chatFullWidth && 'chat--full')}>
@@ -78,6 +127,17 @@ export function ChatWorkspace(): ReactElement {
             onClick={() => setChatFullWidth(!chatFullWidth)}
           >
             {chatFullWidth ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </IconButton>
+          <IconButton
+            title={selectMode ? '退出消息管理' : '管理消息'}
+            active={selectMode}
+            disabled={!activeTopicId || messages.length === 0}
+            onClick={() => {
+              if (selectMode) exitSelectMode()
+              else setSelectMode(true)
+            }}
+          >
+            <ListChecks size={15} />
           </IconButton>
           <Button
             size="sm"
@@ -108,6 +168,9 @@ export function ChatWorkspace(): ReactElement {
         }}
         onEdit={(messageId, text) => editAndResend(messageId, text)}
         editDisabled={generating}
+        selectMode={selectMode}
+        checkedSet={checkedSet}
+        onToggleCheck={toggleCheck}
         empty={
           !activeTopicId ? (
             <EmptyState title="还没有话题" description="在左侧话题栏新建一个话题，然后开始对话。" />
@@ -142,6 +205,34 @@ export function ChatWorkspace(): ReactElement {
           <Button size="sm" onClick={openProviders}>
             打开模型服务
           </Button>
+        </div>
+      ) : null}
+
+      {selectMode ? (
+        <div className="chat-select-bar">
+          <span className="chat-select-bar__count">已选 {checkedSet.size} 条</span>
+          <div className="chat-select-bar__actions">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={checkableIds.length === 0}
+              onClick={toggleCheckAll}
+            >
+              {allChecked ? '取消全选' : '全选'}
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={checkedSet.size === 0}
+              title="删除勾选的消息及其后续分支"
+              onClick={deleteChecked}
+            >
+              删除
+            </Button>
+            <Button size="sm" onClick={exitSelectMode}>
+              完成
+            </Button>
+          </div>
         </div>
       ) : null}
 

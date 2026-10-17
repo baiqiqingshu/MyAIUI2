@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Copy, Pencil, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import clsx from 'clsx'
 import { Button, Spinner, Textarea } from '../../components/ui'
-import { partsToText, type MessagePart } from '../../domain/message'
+import { collectSubtreeIds, partsToText, type MessagePart } from '../../domain/message'
 import type { MessageDTO } from '../../domain/dto'
+import { useChatStore } from './chatStore'
 import { SearchResultCard } from '../search/SearchResults'
 import { ImageResult } from '../images/ImageResult'
 import { MarkdownText } from './markdown/MarkdownText'
@@ -26,6 +28,11 @@ export interface MessageItemProps {
   /** 编辑并重新发送；返回 false 表示失败，需停留在编辑态 */
   onEdit: (messageId: string, text: string) => Promise<boolean> | void
   editDisabled: boolean
+  /** 批量管理态：行首渲染勾选框、隐藏行内操作（缺省＝普通态，UI 零变化） */
+  selectMode?: boolean
+  /** 已勾选的消息 ID 集合（含被连带勾选的不可见后代） */
+  checkedSet?: ReadonlySet<string>
+  onToggleCheck?: (messageId: string) => void
 }
 
 export function MessageItem({
@@ -38,10 +45,18 @@ export function MessageItem({
   onRegenerate,
   onEdit,
   editDisabled,
+  selectMode,
+  checkedSet,
+  onToggleCheck,
 }: MessageItemProps) {
   const isUser = message.Role === 'user'
   const text = partsToText(parts)
   const generatingPlaceholder = !isUser && message.Status === 'streaming' && parts.length === 0
+
+  // 删除与生成互斥：流式行/生成中不提供勾选框与删除按钮。
+  const generating = useChatStore((s) => s.sessions[s.activeTopicId]?.generating ?? false)
+  const deleteMessages = useChatStore((s) => s.deleteMessages)
+  const selectable = !!selectMode && !streaming && message.Status !== 'streaming'
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(text)
@@ -91,11 +106,36 @@ export function MessageItem({
     setEditing(true)
   }
 
+  /* 删除该消息及其全部后代：子树从消息树的 ParentID 链收集，树缺失时只删本节点。 */
+  const onDelete = () => {
+    const state = useChatStore.getState()
+    const nodes = state.sessions[state.activeTopicId]?.tree?.Nodes
+    void deleteMessages(collectSubtreeIds(nodes, message.ID))
+  }
+
   return (
     <article
-      className={isUser ? 'chat-msg chat-msg--user' : 'chat-msg chat-msg--assistant'}
+      className={clsx(
+        'chat-msg',
+        isUser ? 'chat-msg--user' : 'chat-msg--assistant',
+        selectMode && 'chat-msg--select',
+      )}
       data-mid={message.ID}
     >
+      {selectMode ? (
+        selectable ? (
+          <input
+            type="checkbox"
+            className="chat-msg__check"
+            checked={checkedSet?.has(message.ID) ?? false}
+            onChange={() => onToggleCheck?.(message.ID)}
+            aria-label="勾选这条消息及其后续分支"
+          />
+        ) : (
+          /* 流式行不可勾选，占位保持行首对齐 */
+          <span className="chat-msg__check-spacer" aria-hidden="true" />
+        )
+      ) : null}
       <div className="chat-msg__body">
         {editing ? (
           <div className="chat-edit" ref={editRef}>
@@ -157,7 +197,7 @@ export function MessageItem({
         ) : null}
         {message.Status === 'cancelled' && !streaming ? <div className="chat-msg__status">已停止</div> : null}
       </div>
-      {editing ? null : (
+      {editing || selectMode ? null : (
         <div className="chat-msg__actions">
           {siblings && siblings.count > 1 ? (
             <span className="chat-msg__siblings" title="切换同一位置的其它版本">
@@ -215,6 +255,17 @@ export function MessageItem({
             >
               <RefreshCw size={13} />
               <span>重新生成</span>
+            </button>
+          ) : null}
+          {!generating ? (
+            <button
+              type="button"
+              className="chat-action"
+              title="删除这条消息及其后续分支"
+              onClick={onDelete}
+            >
+              <Trash2 size={13} />
+              <span>删除</span>
             </button>
           ) : null}
         </div>

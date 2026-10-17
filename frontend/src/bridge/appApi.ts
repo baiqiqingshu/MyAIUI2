@@ -104,6 +104,7 @@ export const appApi = {
   SaveTurnSnapshot: (input: SaveMessageSnapshotDTO) => call<void>('SaveTurnSnapshot', input),
   FinishTurn: (input: FinishTurnDTO) => call<void>('FinishTurn', input),
   DeleteMessage: (id: string) => call<void>('DeleteMessage', id),
+  DeleteMessages: (ids: string[]) => call<number>('DeleteMessages', ids),
 
   // 分支：精确设置活动节点（回退）或切到某个变体的最深层分支。
   SetActiveNode: (topicId: string, messageId: string) =>

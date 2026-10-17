@@ -14,6 +14,11 @@ export interface MessageListProps {
   onRegenerate: (messageId: string) => void
   onEdit: (messageId: string, text: string) => Promise<boolean> | void
   editDisabled: boolean
+  /** 批量管理态：行首渲染勾选框、隐藏行内操作（缺省＝普通态，UI 零变化） */
+  selectMode?: boolean
+  /** 已勾选的消息 ID 集合（含被连带勾选的不可见后代） */
+  checkedSet?: ReadonlySet<string>
+  onToggleCheck?: (messageId: string) => void
   empty: ReactNode
   /** 可选：外部传入滚动容器 ref（如 MessageDots 需要共享容器做观察/滚动定位）；
       缺省用内部 ref，贴底逻辑不变。 */
@@ -29,6 +34,9 @@ export function MessageList({
   onRegenerate,
   onEdit,
   editDisabled,
+  selectMode,
+  checkedSet,
+  onToggleCheck,
   empty,
   scrollRef: externalScrollRef,
 }: MessageListProps) {
@@ -68,6 +76,9 @@ export function MessageList({
               onRegenerate={onRegenerate}
               onEdit={onEdit}
               editDisabled={editDisabled}
+              selectMode={selectMode}
+              checkedSet={checkedSet}
+              onToggleCheck={onToggleCheck}
             />
           )
         })}

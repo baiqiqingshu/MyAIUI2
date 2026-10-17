@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { MessageDTO } from './dto'
+import type { MessageDTO, TreeNodeDTO } from './dto'
 
 // P0 只允许这五种消息片段（方案 §8.3）。file/attachment/tool/mcp/knowledge/artifact/agent
 // 片段不在本项目范围内，不要在 UI 里“顺手恢复”。
@@ -75,6 +75,34 @@ export function imageDataUrl(part: ImageMessagePart): string | null {
 
 export function isRemoteImageUrl(url: string | undefined): url is string {
   return !!url && url.startsWith('https://')
+}
+
+/**
+ * 收集消息子树：rootId 连同按 ParentID 向下的全部后代（用于级联删除/勾选）。
+ * 消息树缺失或不含该节点时退化为只返回 rootId 本身。
+ */
+export function collectSubtreeIds(
+  nodes: TreeNodeDTO[] | null | undefined,
+  rootId: string,
+): string[] {
+  const children = new Map<string, string[]>()
+  for (const node of nodes ?? []) {
+    const list = children.get(node.ParentID)
+    if (list) list.push(node.ID)
+    else children.set(node.ParentID, [node.ID])
+  }
+  const out: string[] = []
+  const seen = new Set<string>()
+  const queue = [rootId]
+  while (queue.length > 0) {
+    const id = queue.pop() as string
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+    const kids = children.get(id)
+    if (kids) queue.push(...kids)
+  }
+  return out
 }
 
 export function newRequestId(): string {

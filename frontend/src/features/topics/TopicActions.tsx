@@ -18,6 +18,9 @@ export function TopicRow({
   running = false,
   dropPos = null,
   indent,
+  selectable = false,
+  checked = false,
+  onCheckedChange,
   onSelect,
   onRequestDelete,
   onRequestExport,
@@ -36,6 +39,10 @@ export function TopicRow({
   dropPos?: TopicDropPos
   /** 目录树层级缩进（px），0/undefined 用默认 padding */
   indent?: number
+  /** 批量管理多选态：行首显示 checkbox，禁用拖拽并隐藏行内操作 */
+  selectable?: boolean
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
   onSelect: (topicId: string) => void
   onRequestDelete: (topic: TopicDTO) => void
   onRequestExport: (topic: TopicDTO) => void
@@ -97,15 +104,30 @@ export function TopicRow({
 
   return (
     <div
-      className={clsx('topic-item', active && 'is-active', dropPos && `is-drop-${dropPos}`)}
+      className={clsx(
+        'topic-item',
+        active && 'is-active',
+        dropPos && `is-drop-${dropPos}`,
+        selectable && 'is-selectable',
+      )}
       style={indent ? { paddingLeft: indent } : undefined}
-      draggable={!editing}
+      draggable={!editing && !selectable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {selectable ? (
+        <input
+          type="checkbox"
+          className="topic-item__check"
+          checked={checked}
+          aria-label={`选择话题 ${topic.Title || '新话题'}`}
+          onChange={(event) => onCheckedChange?.(event.target.checked)}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ) : null}
       {editing ? (
         <input
           className="ui-input topic-item__input"
@@ -132,7 +154,11 @@ export function TopicRow({
             type="button"
             className="topic-item__main"
             title={rowTitle}
-            onClick={() => onSelect(topic.ID)}
+            onClick={() => {
+              // 多选态下点击行主体 = 切换勾选；普通态 = 选中话题
+              if (selectable) onCheckedChange?.(!checked)
+              else onSelect(topic.ID)
+            }}
           >
             <span className="topic-item__titleline">
               {topic.HasBranches ? (
@@ -155,27 +181,29 @@ export function TopicRow({
               <span className="topic-item__time">{formatRelative(topic.UpdatedAt)}</span>
             </span>
           </button>
-          <span className="topic-item__actions">
-            <IconButton
-              title={topic.Favorite ? '取消收藏' : '收藏'}
-              className={clsx('topic-item__star', topic.Favorite && 'is-fav')}
-              onClick={() => onToggleFavorite(topic)}
-            >
-              <Star size={14} fill={topic.Favorite ? 'currentColor' : 'none'} />
-            </IconButton>
-            <IconButton title="复制为新会话" onClick={handleDuplicate} disabled={duplicating}>
-              <Copy size={14} />
-            </IconButton>
-            <IconButton title="导出 Markdown" onClick={() => onRequestExport(topic)}>
-              <Download size={14} />
-            </IconButton>
-            <IconButton title="重命名" onClick={startRename}>
-              <Pencil size={14} />
-            </IconButton>
-            <IconButton title="删除" onClick={() => onRequestDelete(topic)}>
-              <Trash2 size={14} />
-            </IconButton>
-          </span>
+          {selectable ? null : (
+            <span className="topic-item__actions">
+              <IconButton
+                title={topic.Favorite ? '取消收藏' : '收藏'}
+                className={clsx('topic-item__star', topic.Favorite && 'is-fav')}
+                onClick={() => onToggleFavorite(topic)}
+              >
+                <Star size={14} fill={topic.Favorite ? 'currentColor' : 'none'} />
+              </IconButton>
+              <IconButton title="复制为新会话" onClick={handleDuplicate} disabled={duplicating}>
+                <Copy size={14} />
+              </IconButton>
+              <IconButton title="导出 Markdown" onClick={() => onRequestExport(topic)}>
+                <Download size={14} />
+              </IconButton>
+              <IconButton title="重命名" onClick={startRename}>
+                <Pencil size={14} />
+              </IconButton>
+              <IconButton title="删除" onClick={() => onRequestDelete(topic)}>
+                <Trash2 size={14} />
+              </IconButton>
+            </span>
+          )}
         </>
       )}
     </div>

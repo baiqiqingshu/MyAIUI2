@@ -79,6 +79,8 @@ interface ChatState {
   refresh: () => Promise<void>
   /** 重新拉取消息树（失败静默：树只影响分支 UI） */
   refreshTree: () => Promise<void>
+  /** 删除一批消息及其后代子树（后端按子树并集级联），成功后重载消息与树 */
+  deleteMessages: (ids: string[]) => Promise<void>
   siblingsFor: (messageId: string) => SiblingNav | null
 }
 
@@ -672,6 +674,22 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const topicId = get().activeTopicId
     if (!topicId) return
     await loadTree(topicId, nextLoadSeq(topicId))
+  },
+
+  async deleteMessages(ids) {
+    const ui = useUiStore.getState()
+    if (ids.length === 0) return
+    let removed: number
+    try {
+      removed = await appApi.DeleteMessages(ids)
+    } catch (err) {
+      ui.showToast(`删除消息失败：${describeError(err)}`, 'error')
+      return
+    }
+    await get().refresh()
+    // 话题列表上的消息数角标随之变化，失败不影响对话
+    void ui.refreshTopics().catch(() => {})
+    ui.showToast(`已删除 ${removed} 条消息`, 'success')
   },
 
   siblingsFor(messageId) {

@@ -1454,17 +1454,10 @@ func (a *AppAPI) FinishTurn(input FinishTurnDTO) error {
 	return nil
 }
 
+// DeleteMessage 删除单条消息；语义等同 DeleteMessages([id])：连同后代子树一起删。
 func (a *AppAPI) DeleteMessage(id string) error {
-	if err := a.ready(); err != nil {
-		return err
-	}
-	if err := validateUUID("消息 ID", id); err != nil {
-		return err
-	}
-	if err := a.messages.Delete(strings.TrimSpace(id)); err != nil {
-		return wrapRepoErr("删除消息失败", "消息不存在", err)
-	}
-	return nil
+	_, err := a.DeleteMessages([]string{id})
+	return err
 }
 
 // EditAndResendUserMessage 编辑当前分支上的用户消息：生成用户兄弟变体 + 助手占位，并切换到新分支。

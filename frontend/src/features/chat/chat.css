@@ -233,6 +233,64 @@
   padding: 2px 3px;
 }
 
+/* 批量管理态：整行改为横向排布，行首放勾选框；行内操作按钮不渲染（见 MessageItem）。 */
+.chat-msg.chat-msg--select {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.chat-msg__check,
+.chat-msg__check-spacer {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.chat-msg__check {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.chat-msg.chat-msg--select .chat-msg__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 用户气泡仍靠右：勾选框固定在行首，主体推到右侧 */
+.chat-msg.chat-msg--select.chat-msg--user .chat-msg__body {
+  flex: 0 1 auto;
+  margin-left: auto;
+}
+
+/* 批量管理操作条：贴在输入区上方浮现（elevated + 描边 + 阴影） */
+.chat-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 var(--space-5) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.chat-select-bar__count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-select-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* 用户消息内联编辑 */
 .chat-edit {
   display: flex;
@@ -363,7 +421,8 @@
   flex-wrap: wrap;
 }
 
-.chat-composer__toolbar .ui-select {
+.chat-composer__toolbar .model-select {
+  width: 100%;
   max-width: 320px;
 }
 
@@ -430,6 +489,152 @@
 .search-toggle.is-on {
   background: var(--accent-soft);
   border-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  color: var(--accent-text);
+}
+
+/* ----------------------------------------------------------- 模型选择下拉
+   替代原生 <select>：触发按钮显示「服务商 / 模型名」，弹层向上展开、按服务商分组。 */
+.model-select {
+  position: relative; /* 弹层以此为定位基准 */
+  min-width: 0;
+}
+
+.model-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.model-select__trigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.model-select__trigger:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  outline: none;
+}
+
+.model-select__trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.model-select__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.model-select__label.is-placeholder {
+  color: var(--text-tertiary);
+}
+
+.model-select__chevron {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform 0.15s ease;
+}
+
+.model-select__trigger.is-open .model-select__chevron {
+  transform: rotate(180deg);
+}
+
+/* 弹层在触发按钮上方展开：输入区贴近窗口底边，向下会被裁掉 */
+.model-select__pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  width: max-content;
+  max-width: 360px;
+  max-height: 320px;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.model-select__group + .model-select__group {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.model-select__group-name {
+  padding: var(--space-1) var(--space-2);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-select__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+}
+
+.model-select__item:hover {
+  background: var(--bg-hover);
+}
+
+.model-select__item.is-selected {
+  background: var(--accent-soft);
+}
+
+.model-select__item-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.model-select__item-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-select__item.is-selected .model-select__item-name {
+  color: var(--accent-text);
+  font-weight: 500;
+}
+
+.model-select__item-remote {
+  font-size: 11px;
+  font-family: var(--font-mono), monospace;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-select__item-check {
+  flex: none;
   color: var(--accent-text);
 }
 

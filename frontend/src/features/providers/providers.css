@@ -254,8 +254,28 @@
 }
 
 .model-list__count {
+  flex: none;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* 检索框：夹在计数与操作按钮之间，宽度受控件不挤出行 */
+.model-list__search {
+  flex: 1;
+  min-width: 0;
+  max-width: 240px;
+}
+
+.model-list__search .ui-input {
+  width: 100%;
+}
+
+/* 批量启停条：全选/清空 + 启用/停用所选 */
+.model-list__batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .model-list__actions {
@@ -287,7 +307,7 @@
 
 .model-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 96px auto 28px;
+  grid-template-columns: auto minmax(0, 1fr) auto 96px auto 28px;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2);
@@ -299,6 +319,17 @@
 
 .model-row:hover {
   border-color: var(--border-strong);
+}
+
+/* 行首多选 checkbox：始终显示，勾上后行描边染 accent */
+.model-row__check {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.model-row.is-checked {
+  border-color: color-mix(in oklch, var(--accent) 50%, transparent);
 }
 
 .model-row__main {
