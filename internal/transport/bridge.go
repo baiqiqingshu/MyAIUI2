@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,6 +37,7 @@ const (
 var (
 	errCrossOriginRedirect = errors.New("禁止跨域重定向")
 	errTooManyRedirects    = errors.New("重定向次数过多")
+	errRelayRedirect       = errors.New("中转模式不允许重定向")
 )
 
 // Target 由 AppAPI 解析数据库后注入：真实 origin + 已解密密钥。
@@ -62,6 +64,9 @@ type Emit func(event string, payload any)
 type Bridge struct {
 	emit Emit
 	rt   *http.Transport
+
+	// relayAddr 非空时受限请求改发本地 Python 中转（如 http://127.0.0.1:52341）。
+	relayAddr atomic.Value // string
 
 	mu     sync.Mutex
 	active map[string]*activeRequest
@@ -93,6 +98,19 @@ func NewBridge(emit Emit) *Bridge {
 			DialContext:           (&net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
 		},
 	}
+}
+
+// SetRelay 设置本地 Python 中转基址（如 http://127.0.0.1:52341）；空串关闭中转恢复直连。
+func (b *Bridge) SetRelay(addr string) {
+	b.relayAddr.Store(strings.TrimSpace(addr))
+}
+
+// relay 返回当前中转基址；未启用为 ""。
+func (b *Bridge) relay() string {
+	if v := b.relayAddr.Load(); v != nil {
+		return v.(string)
+	}
+	return ""
 }
 
 // Start 校验并启动请求，立即返回；流式结果通过事件推送。
@@ -211,7 +229,16 @@ func (b *Bridge) do(ctx context.Context, req Request, target Target, endpoint *u
 	if len(req.Body) > 0 {
 		body = bytes.NewReader(req.Body)
 	}
-	hreq, err := http.NewRequestWithContext(ctx, strings.ToUpper(strings.TrimSpace(req.Method)), endpoint.String(), body)
+	method := strings.ToUpper(strings.TrimSpace(req.Method))
+	// origin/path 校验已在 Start 的 ResolveEndpoint 完成；
+	// 中转只改实际投递地址：TCP 连接打到 127.0.0.1，真实目标放进 X-Relay-URL。
+	relayAddr := b.relay()
+	wireMethod, wireURL := method, endpoint.String()
+	if relayAddr != "" {
+		wireMethod = http.MethodPost
+		wireURL = strings.TrimSuffix(relayAddr, "/") + "/relay"
+	}
+	hreq, err := http.NewRequestWithContext(ctx, wireMethod, wireURL, body)
 	if err != nil {
 		return nil, errors.New("请求构造失败")
 	}
@@ -227,6 +254,18 @@ func (b *Bridge) do(ctx context.Context, req Request, target Target, endpoint *u
 	} else {
 		hreq.Header.Del("Authorization")
 	}
+	if relayAddr != "" {
+		// X-Relay-* 在过滤/注入之后写入，前端伪造的同名头一律被覆盖。
+		hreq.Header.Set("X-Relay-Method", method)
+		hreq.Header.Set("X-Relay-URL", endpoint.String())
+		if deadline, ok := ctx.Deadline(); ok {
+			secs := int64(time.Until(deadline).Seconds()) + 1
+			if secs < 1 {
+				secs = 1
+			}
+			hreq.Header.Set("X-Relay-Timeout", strconv.FormatInt(secs, 10))
+		}
+	}
 
 	timer := time.AfterFunc(headerTimeout, func() {
 		active.headerTimeout.Store(true)
@@ -241,6 +280,12 @@ func (b *Bridge) do(ctx context.Context, req Request, target Target, endpoint *u
 	client := &http.Client{
 		Transport:     b.rt,
 		CheckRedirect: b.checkRedirect(endpoint),
+	}
+	if relayAddr != "" {
+		// Python 中转不跟随重定向；Go 侧同步拒绝，避免对 relay URL 做无意义的 origin 校验。
+		client.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return errRelayRedirect
+		}
 	}
 	return client.Do(hreq)
 }
@@ -272,6 +317,8 @@ func (b *Bridge) describeError(active *activeRequest, err error) string {
 		return errCrossOriginRedirect.Error()
 	case errors.Is(err, errTooManyRedirects):
 		return errTooManyRedirects.Error()
+	case errors.Is(err, errRelayRedirect):
+		return errRelayRedirect.Error()
 	case errors.Is(err, context.DeadlineExceeded):
 		return "请求超时"
 	case errors.Is(err, context.Canceled):

@@ -171,3 +171,35 @@
     --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.45), 0 4px 6px -4px oklch(0 0 0 / 0.4);
   }
 }
+
+/* ---------------------------------------------------------------- 精修补充 token
+   少量派生值：由既有色值经 color-mix/同族 OKLCH 派生，不引入第二套命名。
+   shadow-lg   弹窗/抽屉/Toast 用更重一级的浮层阴影
+   accent-ring 控件聚焦光晕（半透明 accent，深浅两套都清晰）
+   success-soft / warning-soft  与 danger-soft 同构的状态底色（chip/横幅） */
+
+:root {
+  --shadow-lg: 0 20px 50px -12px oklch(0 0 0 / 0.22), 0 8px 20px -8px oklch(0 0 0 / 0.12);
+  --accent-ring: color-mix(in oklch, var(--accent) 28%, transparent);
+
+  --success-soft: oklch(0.965 0.02 152); /* 与 cs-green-50 同档 */
+  --warning-soft: oklch(0.965 0.03 88); /* 与 cs-amber-50 同档 */
+}
+
+:root[data-theme='dark'] {
+  --shadow-lg: 0 20px 50px -12px oklch(0 0 0 / 0.6), 0 8px 20px -8px oklch(0 0 0 / 0.5);
+  --accent-ring: color-mix(in oklch, var(--accent) 32%, transparent);
+
+  --success-soft: oklch(0.39 0.1 153); /* 与 cs-green-900 同档 */
+  --warning-soft: oklch(0.4 0.09 78); /* 与 cs-amber-900 同档 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --shadow-lg: 0 20px 50px -12px oklch(0 0 0 / 0.6), 0 8px 20px -8px oklch(0 0 0 / 0.5);
+    --accent-ring: color-mix(in oklch, var(--accent) 32%, transparent);
+
+    --success-soft: oklch(0.39 0.1 153);
+    --warning-soft: oklch(0.4 0.09 78);
+  }
+}

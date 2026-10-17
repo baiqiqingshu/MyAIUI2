@@ -232,7 +232,7 @@
 
 .md-code__copy:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
 /* 容器已提供边框/底色/圆角，内层 pre 只保留滚动与排版（也覆盖列表内的 .md li pre 边距） */
@@ -348,7 +348,7 @@
 }
 
 .md tbody tr:hover > td {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--bg-hover);
 }
 
 .md hr {
@@ -372,7 +372,7 @@
 .md a:focus-visible {
   outline: none;
   border-radius: 2px;
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
 .md strong {

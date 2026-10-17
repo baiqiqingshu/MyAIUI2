@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Plus, Trash } from 'lucide-react'
-import { Button, ConfirmDialog, IconButton, Input, Select, Toggle } from '../../components/ui'
+import { Eraser, Plus, Trash } from 'lucide-react'
+import { Button, IconButton, Input, Select, Toggle } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
 import type { ModelDTO } from '../../domain/dto'
@@ -29,11 +29,14 @@ export function ModelList({ providerId }: { providerId: string }) {
   const [newRemoteID, setNewRemoteID] = useState('')
   const [newDisplayName, setNewDisplayName] = useState('')
   const [newModality, setNewModality] = useState('text')
-  const [deleteTarget, setDeleteTarget] = useState<ModelDTO | null>(null)
+  const [purging, setPurging] = useState(false)
   // 本次同步新增的模型 ID；非空时在列表上方显示勾选面板（默认全不选）。
   const [addedIDs, setAddedIDs] = useState<string[]>([])
   const [selectedIDs, setSelectedIDs] = useState<string[]>([])
   const [enabling, setEnabling] = useState(false)
+
+  // 「已失联」模型数：> 0 时「清理失效模型」可点。
+  const missingCount = useMemo(() => models.filter((m) => m.MissingRemote).length, [models])
 
   // 面板内容始终按 ID 从 store 取，刷新后展示信息保持最新。
   const addedModels = useMemo(
@@ -139,17 +142,37 @@ export function ModelList({ providerId }: { providerId: string }) {
     }
   }
 
-  async function handleDelete() {
-    const target = deleteTarget
-    if (!target) return
+  function handleCancelAdd() {
+    setAdding(false)
+    setNewRemoteID('')
+    setNewDisplayName('')
+    setNewModality('text')
+  }
+
+  // 删除模型不弹确认：误删可通过「同步模型」找回远端模型。
+  async function handleDelete(model: ModelDTO) {
+    setBusyId(model.ID)
     try {
-      await appApi.DeleteModel(target.ID)
+      await appApi.DeleteModel(model.ID)
       await refreshModels()
       showToast('模型已删除', 'success')
     } catch (error) {
       showToast(`删除失败：${describeError(error)}`, 'error')
     } finally {
-      setDeleteTarget(null)
+      setBusyId('')
+    }
+  }
+
+  async function handlePurge() {
+    setPurging(true)
+    try {
+      const removed = await appApi.PurgeMissingModels(providerId)
+      await refreshModels()
+      showToast(`已清理 ${removed} 个失效模型`, 'success')
+    } catch (error) {
+      showToast(`清理失败：${describeError(error)}`, 'error')
+    } finally {
+      setPurging(false)
     }
   }
 
@@ -160,6 +183,17 @@ export function ModelList({ providerId }: { providerId: string }) {
         <div className="model-list__actions">
           <Button size="sm" onClick={handleSync} loading={syncing}>
             同步模型
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handlePurge}
+            loading={purging}
+            disabled={missingCount === 0}
+            title="删除远端已不存在的模型"
+          >
+            <Eraser size={13} />
+            清理失效模型{missingCount > 0 ? `（${missingCount}）` : ''}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setAdding((v) => !v)}>
             <Plus size={13} />
@@ -175,6 +209,9 @@ export function ModelList({ providerId }: { providerId: string }) {
           <Select value={newModality} onChange={setNewModality} options={MODALITY_OPTIONS} />
           <Button size="sm" variant="primary" onClick={handleAdd} loading={busyId === 'new'}>
             添加
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handleCancelAdd} disabled={busyId === 'new'}>
+            取消
           </Button>
         </div>
       ) : null}
@@ -256,21 +293,17 @@ export function ModelList({ providerId }: { providerId: string }) {
                 label="启用"
                 disabled={busyId === model.ID}
               />
-              <IconButton title="删除模型" onClick={() => setDeleteTarget(model)}>
+              <IconButton
+                title="删除模型"
+                onClick={() => void handleDelete(model)}
+                disabled={busyId === model.ID}
+              >
                 <Trash size={14} />
               </IconButton>
             </li>
           ))}
         </ul>
       )}
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title="删除模型"
-        description={deleteTarget ? `确定删除模型「${deleteTarget.DisplayName}」？` : ''}
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </div>
   )
 }

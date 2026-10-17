@@ -10,9 +10,13 @@ import (
 )
 
 // Topic 话题记录；ActiveNodeID 是当前活动分支的末端消息 ID（空表示话题还没有消息）。
+// FolderID 是所属话题目录（空表示位于所在区域的根级）；Favorite 表示是否收藏；
+// SortOrder 是话题在其容器（folder_id + favorite 一致）内的排序下标。
 type Topic struct {
-	ID, AssistantID, Title, ActiveNodeID string
-	CreatedAt, UpdatedAt                 int64
+	ID, AssistantID, Title, ActiveNodeID, FolderID string
+	Favorite                                       bool
+	SortOrder                                      int
+	CreatedAt, UpdatedAt                           int64
 }
 
 // TopicRepo topics 表读写。
@@ -26,13 +30,17 @@ func NewTopicRepo(db *database.DB) *TopicRepo {
 }
 
 // topicColumns 是 topics 的统一查询列，顺序必须与 scanTopic 一致。
-const topicColumns = `id, assistant_id, title, active_node_id, created_at, updated_at`
+const topicColumns = `id, assistant_id, title, active_node_id, folder_id, favorite, sort_order, created_at, updated_at`
 
 func scanTopic(s rowScanner) (Topic, error) {
-	var t Topic
-	if err := s.Scan(&t.ID, &t.AssistantID, &t.Title, &t.ActiveNodeID, &t.CreatedAt, &t.UpdatedAt); err != nil {
+	var (
+		t        Topic
+		favorite int64
+	)
+	if err := s.Scan(&t.ID, &t.AssistantID, &t.Title, &t.ActiveNodeID, &t.FolderID, &favorite, &t.SortOrder, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return Topic{}, err
 	}
+	t.Favorite = favorite != 0
 	return t, nil
 }
 
@@ -73,9 +81,49 @@ func (r *TopicRepo) Get(id string) (Topic, error) {
 
 // Create 新增话题。
 func (r *TopicRepo) Create(t Topic) error {
-	_, err := r.db.SQL().ExecContext(context.Background(), `INSERT INTO topics (id, assistant_id, title, active_node_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		t.ID, t.AssistantID, t.Title, t.ActiveNodeID, t.CreatedAt, t.UpdatedAt)
+	_, err := r.db.SQL().ExecContext(context.Background(), `INSERT INTO topics (id, assistant_id, title, active_node_id, folder_id, favorite, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.AssistantID, t.Title, t.ActiveNodeID, t.FolderID, boolToInt(t.Favorite), t.SortOrder, t.CreatedAt, t.UpdatedAt)
 	return err
+}
+
+// SetPlacement 更新话题所属目录与收藏标记，并刷新 updated_at。
+func (r *TopicRepo) SetPlacement(id string, folderID string, favorite bool, now int64) error {
+	res, err := r.db.SQL().ExecContext(context.Background(), `UPDATE topics SET folder_id = ?, favorite = ?, updated_at = ? WHERE id = ?`, folderID, boolToInt(favorite), now, id)
+	if err != nil {
+		return err
+	}
+	return requireAffected(res)
+}
+
+// SetSortOrder 更新话题在其容器内的排序下标（不刷新 updated_at）。
+func (r *TopicRepo) SetSortOrder(id string, order int) error {
+	res, err := r.db.SQL().ExecContext(context.Background(), `UPDATE topics SET sort_order = ? WHERE id = ?`, order, id)
+	if err != nil {
+		return err
+	}
+	return requireAffected(res)
+}
+
+// ListSiblings 返回同一容器内（assistant_id + folder_id + favorite 一致）的话题，按 sort_order, updated_at 排序。
+func (r *TopicRepo) ListSiblings(assistantID string, folderID string, favorite bool) ([]Topic, error) {
+	rows, err := r.db.SQL().QueryContext(context.Background(), `SELECT `+topicColumns+` FROM topics WHERE assistant_id = ? AND folder_id = ? AND favorite = ? ORDER BY sort_order, updated_at`, assistantID, folderID, boolToInt(favorite))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := make([]Topic, 0, 8)
+	for rows.Next() {
+		t, err := scanTopic(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return list, nil
 }
 
 // Rename 重命名话题并刷新 updated_at。

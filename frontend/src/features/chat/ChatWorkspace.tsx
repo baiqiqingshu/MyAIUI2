@@ -1,9 +1,12 @@
-import { useEffect, useState, type ReactElement } from 'react'
-import { GitBranch, PlugZap } from 'lucide-react'
-import { Button, EmptyState } from '../../components/ui'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { GitBranch, Maximize2, Minimize2, PlugZap } from 'lucide-react'
+import clsx from 'clsx'
+import { Button, EmptyState, IconButton } from '../../components/ui'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
-import { copyToClipboard, useChatStore } from './chatStore'
+import { useLayoutStore } from '../../app/layoutStore'
+import { copyToClipboard, EMPTY_SESSION, useChatStore } from './chatStore'
 import { MessageList } from './MessageList'
+import { MessageDots } from './MessageDots'
 import { TextComposer } from './TextComposer'
 import { BranchPanel } from '../branches/BranchPanel'
 import './chat.css'
@@ -16,18 +19,19 @@ export function ChatWorkspace(): ReactElement {
   const models = useUiStore((s) => s.models)
   const activeAssistantId = useUiStore((s) => s.activeAssistantId)
   const activeTopicId = useUiStore((s) => s.activeTopicId)
-  const openDrawer = useUiStore((s) => s.openDrawer)
+  const setMainView = useUiStore((s) => s.setMainView)
 
-  const messages = useChatStore((s) => s.messages)
-  const loading = useChatStore((s) => s.loading)
-  const generating = useChatStore((s) => s.generating)
-  const stream = useChatStore((s) => s.stream)
-  const tree = useChatStore((s) => s.tree)
+  // 当前话题的会话：生成中的话题切走再切回时，stream/generating 原样保留。
+  const session = useChatStore((s) => s.sessions[s.activeTopicId] ?? EMPTY_SESSION)
+  const { messages, tree, loading, generating, stream } = session
   const setTopic = useChatStore((s) => s.setTopic)
   const send = useChatStore((s) => s.send)
   const regenerate = useChatStore((s) => s.regenerate)
   const editAndResend = useChatStore((s) => s.editAndResend)
   const syncSearchDefault = useChatStore((s) => s.syncSearchDefault)
+  // 布局偏好：消息列铺满宽度开关（layoutStore 持久化，仅 UI 偏好）
+  const chatFullWidth = useLayoutStore((s) => s.chatFullWidth)
+  const setChatFullWidth = useLayoutStore((s) => s.setChatFullWidth)
 
   const assistant = assistants.find((a) => a.ID === activeAssistantId)
   const topic = topics.find((t) => t.ID === activeTopicId)
@@ -37,6 +41,8 @@ export function ChatWorkspace(): ReactElement {
 
   const [draft, setDraft] = useState('')
   const [branchOpen, setBranchOpen] = useState(false)
+  /* 消息滚动容器：同时交给 MessageList（贴底）与 MessageDots（观察/定位）。 */
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setTopic(activeTopicId)
@@ -50,11 +56,11 @@ export function ChatWorkspace(): ReactElement {
     syncSearchDefault(assistant?.WebSearchDefault ?? false)
   }, [assistant?.ID, assistant?.WebSearchDefault, syncSearchDefault])
 
-  const openProviders = () => openDrawer({ kind: 'providers' })
+  const openProviders = () => setMainView('models')
   const providerGuide = !hasUsableModel
 
   return (
-    <div className="chat">
+    <div className={clsx('chat', chatFullWidth && 'chat--full')}>
       <header className="chat-header">
         <span className="chat-header__emoji" aria-hidden>
           {assistant?.Emoji || '🤖'}
@@ -66,6 +72,13 @@ export function ChatWorkspace(): ReactElement {
           </div>
         </div>
         <div className="chat-header__actions">
+          <IconButton
+            title={chatFullWidth ? '默认宽度' : '铺满宽度'}
+            active={chatFullWidth}
+            onClick={() => setChatFullWidth(!chatFullWidth)}
+          >
+            {chatFullWidth ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </IconButton>
           <Button
             size="sm"
             disabled={!activeTopicId}
@@ -82,6 +95,7 @@ export function ChatWorkspace(): ReactElement {
       </header>
 
       <MessageList
+        scrollRef={scrollRef}
         messages={messages}
         loading={loading}
         stream={stream}
@@ -119,6 +133,8 @@ export function ChatWorkspace(): ReactElement {
           )
         }
       />
+
+      <MessageDots scrollRef={scrollRef} />
 
       {providerGuide && activeTopicId && messages.length > 0 ? (
         <div className="chat-notice">

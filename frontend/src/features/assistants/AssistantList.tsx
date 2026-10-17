@@ -1,15 +1,17 @@
-import { Globe, Pencil, Plus, Server } from 'lucide-react'
+import { MessageSquare, Pencil, Plus, Server } from 'lucide-react'
 import clsx from 'clsx'
 import { useUiStore } from '../../app/uiStore'
 import { IconButton } from '../../components/ui'
 import './assistants.css'
 
-/** 最左侧 64px 助手栏：Emoji 头像列表 + 底部三个入口。 */
+/** 最左侧 64px 助手栏：Emoji 头像列表 + 底部三个入口（添加助手 / 聊天 / 模型服务）。 */
 export function AssistantRail() {
   const assistants = useUiStore((s) => s.assistants)
   const activeAssistantId = useUiStore((s) => s.activeAssistantId)
   const selectAssistant = useUiStore((s) => s.selectAssistant)
   const openDrawer = useUiStore((s) => s.openDrawer)
+  const mainView = useUiStore((s) => s.mainView)
+  const setMainView = useUiStore((s) => s.setMainView)
 
   return (
     <aside className="as-rail" aria-label="助手">
@@ -24,7 +26,11 @@ export function AssistantRail() {
                 title={assistant.Name}
                 aria-label={assistant.Name}
                 aria-current={active ? 'true' : undefined}
-                onClick={() => selectAssistant(assistant.ID)}
+                onClick={() => {
+                  selectAssistant(assistant.ID)
+                  // 模型服务页里点助手直接切回聊天视图。
+                  if (mainView === 'models') setMainView('chat')
+                }}
               >
                 <span className="as-rail__emoji">{assistant.Emoji || '🤖'}</span>
               </button>
@@ -48,11 +54,15 @@ export function AssistantRail() {
         >
           <Plus size={18} />
         </IconButton>
-        <IconButton title="模型服务" onClick={() => openDrawer({ kind: 'providers' })}>
-          <Server size={18} />
+        <IconButton title="聊天" active={mainView === 'chat'} onClick={() => setMainView('chat')}>
+          <MessageSquare size={18} />
         </IconButton>
-        <IconButton title="联网搜索" onClick={() => openDrawer({ kind: 'search' })}>
-          <Globe size={18} />
+        <IconButton
+          title="模型服务"
+          active={mainView === 'models'}
+          onClick={() => setMainView('models')}
+        >
+          <Server size={18} />
         </IconButton>
       </div>
     </aside>

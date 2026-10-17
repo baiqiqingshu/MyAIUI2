@@ -76,9 +76,28 @@ func (b *Bridge) SearchSearxng(ctx context.Context, target Target, query string,
 		hreq.Header.Set("Authorization", "Bearer "+target.APIKey)
 	}
 
+	// 中转开启时改发本地 Python 中转（与 do() 同一约定：真实目标放进 X-Relay-URL）。
+	relayAddr := b.relay()
+	if relayAddr != "" {
+		relayReq, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimSuffix(relayAddr, "/")+"/relay", nil)
+		if err != nil {
+			return nil, errors.New("搜索请求构造失败")
+		}
+		relayReq.Header = hreq.Header
+		relayReq.Header.Set("X-Relay-Method", http.MethodGet)
+		relayReq.Header.Set("X-Relay-URL", endpoint.String())
+		relayReq.Header.Set("X-Relay-Timeout", "20")
+		hreq = relayReq
+	}
+
 	client := &http.Client{
 		Transport:     b.rt,
 		CheckRedirect: b.checkRedirect(endpoint),
+	}
+	if relayAddr != "" {
+		client.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return errRelayRedirect
+		}
 	}
 	resp, err := client.Do(hreq)
 	if err != nil {

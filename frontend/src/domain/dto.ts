@@ -126,6 +126,12 @@ export interface TopicDTO {
   ActiveNodeID: string
   /** 话题内是否存在分支（某个消息节点有多个子节点） */
   HasBranches: boolean
+  /** 所在目录 ID；'' = 所属分区（收藏区或普通区）的根级 */
+  FolderID: string
+  /** 收藏话题；收藏话题在话题栏收藏区展示，目录归属按 Zone='fav' 的目录 */
+  Favorite: boolean
+  /** 所在容器（目录或分区根）内的排序下标 */
+  SortOrder: number
   CreatedAt: number
   UpdatedAt: number
 }
@@ -133,6 +139,51 @@ export interface TopicDTO {
 export interface CreateTopicDTO {
   AssistantID: string
   Title: string
+}
+
+/** 话题目录：Zone '' = 普通区目录，'fav' = 收藏区目录；ParentID 链支持嵌套。 */
+export interface TopicFolderDTO {
+  ID: string
+  AssistantID: string
+  ParentID: string
+  Name: string
+  Zone: string
+  SortOrder: number
+  CreatedAt: number
+  UpdatedAt: number
+}
+
+export interface SaveTopicFolderDTO {
+  ID: string
+  AssistantID: string
+  ParentID: string
+  Name: string
+  Zone: string
+  SortOrder: number
+}
+
+/** 话题移动/排序：FolderID 为目标目录（'' = 分区根），SortOrder 为目标容器内的插入下标。 */
+export interface MoveTopicDTO {
+  TopicID: string
+  FolderID: string
+  Favorite: boolean
+  SortOrder: number
+}
+
+export interface MoveTopicFolderDTO {
+  FolderID: string
+  ParentID: string
+  Zone: string
+  SortOrder: number
+}
+
+/** 内置中转（本机 Python 进程）的运行状态。 */
+export interface RelayStatusDTO {
+  Enabled: boolean
+  Running: boolean
+  Addr: string
+  PythonPath: string
+  Error: string
 }
 
 export interface MessageDTO {

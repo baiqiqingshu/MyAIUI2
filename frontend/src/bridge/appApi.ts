@@ -10,8 +10,11 @@ import type {
   MessageDTO,
   ModelDTO,
   ModelSyncResultDTO,
+  MoveTopicDTO,
+  MoveTopicFolderDTO,
   ProviderDTO,
   ProviderRequestDTO,
+  RelayStatusDTO,
   RequestHandleDTO,
   SaveAppSettingsDTO,
   SaveAssistantDTO,
@@ -20,12 +23,14 @@ import type {
   SaveModelDTO,
   SaveProviderDTO,
   SaveSearchSettingsDTO,
+  SaveTopicFolderDTO,
   SearchRequestDTO,
   SearchResponseDTO,
   SearchSettingsDTO,
   StartAssistantMessageDTO,
   StartTurnDTO,
   TopicDTO,
+  TopicFolderDTO,
   TopicTreeDTO,
   TurnDTO,
 } from '../domain/dto'
@@ -61,6 +66,8 @@ export const appApi = {
   SaveManualModel: (input: SaveModelDTO) => call<ModelDTO>('SaveManualModel', input),
   SetModelEnabled: (id: string, enabled: boolean) => call<void>('SetModelEnabled', id, enabled),
   DeleteModel: (id: string) => call<void>('DeleteModel', id),
+  // 清理「已失联」模型（远端已不存在）；返回删除数量。
+  PurgeMissingModels: (providerId: string) => call<number>('PurgeMissingModels', providerId),
   // 复制密钥：明文只在本机 Go 进程内解密并直接写入系统剪贴板，前端拿不到密钥内容。
   CopyProviderAPIKey: (id: string) => call<void>('CopyProviderAPIKey', id),
 
@@ -78,6 +85,13 @@ export const appApi = {
   ExportTopicMarkdown: (topicId: string) => call<MarkdownExportDTO>('ExportTopicMarkdown', topicId),
   SaveTopicMarkdown: (topicId: string, fileName: string) =>
     call<SaveMarkdownResultDTO>('SaveTopicMarkdown', topicId, fileName),
+
+  // 话题目录与移动：SortOrder 一律是目标容器内的插入下标。
+  ListTopicFolders: (assistantId: string) => call<TopicFolderDTO[]>('ListTopicFolders', assistantId),
+  SaveTopicFolder: (input: SaveTopicFolderDTO) => call<TopicFolderDTO>('SaveTopicFolder', input),
+  DeleteTopicFolder: (id: string) => call<void>('DeleteTopicFolder', id),
+  MoveTopic: (input: MoveTopicDTO) => call<void>('MoveTopic', input),
+  MoveTopicFolder: (input: MoveTopicFolderDTO) => call<void>('MoveTopicFolder', input),
 
   ListMessages: (topicId: string, beforeOrder: number, limit: number) =>
     call<MessageDTO[]>('ListMessages', topicId, beforeOrder, limit),
@@ -108,6 +122,10 @@ export const appApi = {
   StartProviderRequest: (input: ProviderRequestDTO) =>
     call<RequestHandleDTO>('StartProviderRequest', input),
   CancelProviderRequest: (requestId: string) => call<void>('CancelProviderRequest', requestId),
+
+  // 内置中转：内网环境下模型请求经本机 Python 进程转发。
+  GetRelayStatus: () => call<RelayStatusDTO>('GetRelayStatus'),
+  SetRelayEnabled: (enabled: boolean) => call<RelayStatusDTO>('SetRelayEnabled', enabled),
 
   OpenExternalURL: (url: string) => call<void>('OpenExternalURL', url),
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { parseParts } from '../../domain/message'
 import type { MessageDTO } from '../../domain/dto'
 import { Spinner } from '../../components/ui'
@@ -15,6 +15,9 @@ export interface MessageListProps {
   onEdit: (messageId: string, text: string) => Promise<boolean> | void
   editDisabled: boolean
   empty: ReactNode
+  /** 可选：外部传入滚动容器 ref（如 MessageDots 需要共享容器做观察/滚动定位）；
+      缺省用内部 ref，贴底逻辑不变。 */
+  scrollRef?: RefObject<HTMLDivElement | null>
 }
 
 export function MessageList({
@@ -27,8 +30,10 @@ export function MessageList({
   onEdit,
   editDisabled,
   empty,
+  scrollRef: externalScrollRef,
 }: MessageListProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const internalScrollRef = useRef<HTMLDivElement>(null)
+  const scrollRef = externalScrollRef ?? internalScrollRef
   // 兄弟变体信息来自消息树：无树或该位置只有一个版本时返回 null
   const siblingsFor = useChatStore((s) => s.siblingsFor)
 
@@ -50,7 +55,7 @@ export function MessageList({
       <div className="chat-list">
         {messages.map((message) => {
           const isStreaming = !!stream && stream.messageId === message.ID
-          const parts = isStreaming && stream ? [...stream.prefix, ...stream.parts] : parseParts(message.PartsJSON)
+          const parts = isStreaming && stream ? stream.parts : parseParts(message.PartsJSON)
           return (
             <MessageItem
               key={message.ID}

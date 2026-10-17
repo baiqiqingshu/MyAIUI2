@@ -49,6 +49,11 @@ a:hover {
   text-decoration: underline;
 }
 
+/* 选区色：半透明 accent，深浅主题下都不会盖掉文字 */
+::selection {
+  background: color-mix(in oklch, var(--accent) 22%, transparent);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -57,7 +62,9 @@ a:hover {
 /* 三栏骨架：助手栏 / 话题栏 / 主工作区 */
 .app-shell {
   display: grid;
-  grid-template-columns: var(--rail-width) var(--panel-width) minmax(0, 1fr);
+  /* 中间列用 auto：话题面板宽度由 layoutStore 内联 style 控制（可拖拽），
+     面板未渲染时（模型服务页/窄屏折叠）该列塌缩为 0，行为与原来一致。 */
+  grid-template-columns: var(--rail-width) auto minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
   width: 100%;

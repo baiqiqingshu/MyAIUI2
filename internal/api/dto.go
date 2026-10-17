@@ -144,8 +144,14 @@ type TopicDTO struct {
 	ActiveNodeID string
 	// HasBranches 表示话题内存在分支（某个消息节点有多个子节点）。
 	HasBranches bool
-	CreatedAt   int64
-	UpdatedAt   int64
+	// FolderID 是话题所属目录；空字符串表示位于所在区域的根级。
+	FolderID string
+	// Favorite 表示话题是否位于收藏区。
+	Favorite bool
+	// SortOrder 是话题在其容器内的排序下标（0 起）。
+	SortOrder int
+	CreatedAt int64
+	UpdatedAt int64
 }
 
 type CreateTopicDTO struct {

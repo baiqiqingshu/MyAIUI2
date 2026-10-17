@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Copy } from 'lucide-react'
-import { Button, Field, Input, Select, Toggle } from '../../components/ui'
+import { Copy, X } from 'lucide-react'
+import { Button, Field, IconButton, Input, Select, Toggle } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
 import type { ProviderDTO, SaveProviderDTO } from '../../domain/dto'
@@ -138,6 +138,12 @@ export function ProviderForm({
 
   return (
     <div className="provider-form">
+      <div className="provider-form__head">
+        <h2 className="provider-form__title">{provider ? '编辑服务商' : '添加服务商'}</h2>
+        <IconButton title="取消" onClick={onCancel} disabled={saving}>
+          <X size={16} />
+        </IconButton>
+      </div>
       <Field label="预设模板" hint="仅用于快速填充地址，不会自动联网校验">
         <Select value={templateId} onChange={applyTemplate} options={TEMPLATE_OPTIONS} />
       </Field>

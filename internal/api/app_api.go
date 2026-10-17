@@ -20,6 +20,7 @@ import (
 	"myaiui2/internal/database"
 	"myaiui2/internal/logging"
 	"myaiui2/internal/platform"
+	"myaiui2/internal/relay"
 	"myaiui2/internal/repository"
 	"myaiui2/internal/secret"
 	"myaiui2/internal/transport"
@@ -73,6 +74,7 @@ type AppAPI struct {
 
 	secrets secret.Store
 	bridge  *transport.Bridge
+	relay   *relay.Manager
 
 	// fetches 收集内部同步请求（模型列表/连通性检测）的事件结果，键为 RequestID。
 	fetches map[string]*syncFetch
@@ -142,6 +144,25 @@ func (a *AppAPI) Start(ctx context.Context) error {
 		return err
 	}
 
+	// 本地 Python 中转（默认开启）：启动失败仅降级为直连，不阻断应用初始化，
+	// 内网没有 Python 的机器仍可手动关闭中转走直连。
+	a.mu.Lock()
+	if a.relay == nil {
+		if dir, err := dataDir(); err == nil {
+			a.relay = relay.New(dir)
+		} else {
+			logging.Errorf("定位中转数据目录失败: %v", err)
+		}
+	}
+	a.mu.Unlock()
+	if enabled, err := a.relayEnabled(); err != nil {
+		logging.Errorf("读取中转设置失败: %v", err)
+	} else if enabled {
+		if err := a.startRelay(); err != nil {
+			logging.Errorf("本地中转启动失败，已回退直连: %v", err)
+		}
+	}
+
 	now := nowMs()
 	if n, err := a.messages.MarkStreamingAsInterrupted(now); err != nil {
 		logging.Errorf("标记中断消息失败: %v", err)
@@ -151,13 +172,18 @@ func (a *AppAPI) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop 关闭数据库连接；数据目录与密钥保持不变。
+// Stop 关闭数据库连接并结束中转子进程；数据目录与密钥保持不变。
 func (a *AppAPI) Stop(ctx context.Context) {
 	a.mu.Lock()
 	db := a.db
 	a.db = nil
 	a.started = false
+	relayMgr := a.relay
 	a.mu.Unlock()
+	a.bridge.SetRelay("")
+	if relayMgr != nil {
+		relayMgr.Stop()
+	}
 	if db == nil {
 		return
 	}
@@ -291,6 +317,9 @@ func (a *AppAPI) ensureDefaultAssistant() ([]AssistantDTO, error) {
 			return nil, wrapRepoErr("读取助手失败", "", err)
 		}
 	}
+	if list, err = a.ensureBuiltinAssistants(list); err != nil {
+		return nil, err
+	}
 	out := make([]AssistantDTO, 0, len(list))
 	for _, item := range list {
 		out = append(out, toAssistantDTO(item))
@@ -312,6 +341,84 @@ func (a *AppAPI) createDefaultAssistant(sortOrder int) (repository.Assistant, er
 		return repository.Assistant{}, wrapRepoErr("创建默认助手失败", "", err)
 	}
 	return assistant, nil
+}
+
+// settingsKeyBuiltinAssistants 是「预置助手已播种」的一次性标记键：只播种一次，之后用户可以随意删改。
+const settingsKeyBuiltinAssistants = "builtin_assistants_v1"
+
+// builtinAssistantSeed 预置助手定义；播种时按声明顺序写入 sort_order 0..3。
+type builtinAssistantSeed struct {
+	Name         string
+	Emoji        string
+	SystemPrompt string
+}
+
+var builtinAssistantSeeds = []builtinAssistantSeed{
+	{Name: defaultAssistantName, Emoji: defaultAssistantEmoji},
+	{
+		Name:  "编程助手",
+		Emoji: "💻",
+		SystemPrompt: "你是一个资深全栈编程助手，擅长前端（React/TypeScript）、后端（Go/Python/Node.js）与数据库设计。" +
+			"回答时先简述思路与关键决策，再给出可直接使用的代码；代码遵循调用方项目的既有风格与约定；" +
+			"必要时给出分步实施建议。",
+	},
+	{
+		Name:  "变量名命名大师",
+		Emoji: "🏷️",
+		SystemPrompt: "你是变量命名专家。用户会描述一个变量、函数、类或常量的用途、类型与上下文。" +
+			"你给出 3~5 个命名建议，每个注明命名风格（camelCase/snake_case/PascalCase/UPPER_SNAKE_CASE）、含义与适用场景，" +
+			"最后推荐一个最佳答案并说明理由。命名原则：准确表达意图、避免歧义缩写、符合目标语言惯例。",
+	},
+	{
+		Name:  "中英翻译",
+		Emoji: "🔁",
+		SystemPrompt: "你是专业的中英互译助手。自动判断输入语言：中文译成英文，英文译成中文。" +
+			"保持原文语气、格式与专业术语的准确性；只输出译文，不输出解释或注释；" +
+			"遇到一词多义时在译文后用括号给出备选译法。",
+	},
+}
+
+// ensureBuiltinAssistants 只在首次 Bootstrap 播种预置助手：同名助手已存在则跳过，
+// 全部处理完后写入一次性标记，标记存在时直接返回原列表。
+func (a *AppAPI) ensureBuiltinAssistants(list []repository.Assistant) ([]repository.Assistant, error) {
+	_, seeded, err := a.settings.Get(settingsKeyBuiltinAssistants)
+	if err != nil {
+		return list, wrapRepoErr("读取预置助手标记失败", "", err)
+	}
+	if seeded {
+		return list, nil
+	}
+	existing := make(map[string]struct{}, len(list))
+	for _, item := range list {
+		existing[item.Name] = struct{}{}
+	}
+	now := nowMs()
+	for order, seed := range builtinAssistantSeeds {
+		if _, ok := existing[seed.Name]; ok {
+			continue
+		}
+		assistant := repository.Assistant{
+			ID:           uuid.NewString(),
+			Name:         seed.Name,
+			Emoji:        seed.Emoji,
+			SystemPrompt: seed.SystemPrompt,
+			SortOrder:    order,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if err := a.assistants.Create(assistant); err != nil {
+			return list, wrapRepoErr("创建预置助手失败", "", err)
+		}
+		existing[seed.Name] = struct{}{}
+	}
+	if err := a.settings.Set(settingsKeyBuiltinAssistants, `"1"`, now); err != nil {
+		return list, wrapRepoErr("写入预置助手标记失败", "", err)
+	}
+	out, err := a.assistants.List()
+	if err != nil {
+		return list, wrapRepoErr("读取助手失败", "", err)
+	}
+	return out, nil
 }
 
 func (a *AppAPI) ensureTopics(assistantID string) ([]TopicDTO, error) {
@@ -1011,7 +1118,8 @@ func (a *AppAPI) ListTopics(assistantID string) ([]TopicDTO, error) {
 	if _, err := a.assistants.Get(strings.TrimSpace(assistantID)); err != nil {
 		return nil, wrapRepoErr("读取助手失败", "助手不存在", err)
 	}
-	return a.listTopics(strings.TrimSpace(assistantID))
+	// 进入助手时若无会话自动补一个默认话题（ensureTopics 幂等，非空直接返回）。
+	return a.ensureTopics(strings.TrimSpace(assistantID))
 }
 
 func (a *AppAPI) listTopics(assistantID string) ([]TopicDTO, error) {
@@ -2387,6 +2495,9 @@ func toTopicDTO(t repository.Topic, messageCount int, hasBranches bool) TopicDTO
 		MessageCount: messageCount,
 		ActiveNodeID: t.ActiveNodeID,
 		HasBranches:  hasBranches,
+		FolderID:     t.FolderID,
+		Favorite:     t.Favorite,
+		SortOrder:    t.SortOrder,
 		CreatedAt:    t.CreatedAt,
 		UpdatedAt:    t.UpdatedAt,
 	}

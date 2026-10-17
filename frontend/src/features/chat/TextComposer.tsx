@@ -1,11 +1,10 @@
-import { Send, Square } from 'lucide-react'
+import { Globe, Send, Square } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Select, Textarea, type SelectOption } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { useChatStore } from './chatStore'
-import { SearchToggle } from '../search/SearchToggle'
 import type { SaveAssistantDTO } from '../../domain/dto'
 
 export interface TextComposerProps {
@@ -39,7 +38,8 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
   const refreshAssistants = useUiStore((s) => s.refreshAssistants)
   const showToast = useUiStore((s) => s.showToast)
 
-  const generating = useChatStore((s) => s.generating)
+  // 发送/停止按钮只看当前话题的会话：别的话题在生成不阻塞这里。
+  const generating = useChatStore((s) => s.sessions[s.activeTopicId]?.generating ?? false)
   const searchEnabled = useChatStore((s) => s.searchEnabled)
   const setSearchEnabled = useChatStore((s) => s.setSearchEnabled)
   const stop = useChatStore((s) => s.stop)
@@ -178,7 +178,16 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
           disabled={generating || options.length === 0 || !assistant}
           placeholder={options.length === 0 ? '暂无可用模型' : '选择模型'}
         />
-        <SearchToggle enabled={searchEnabled} onChange={setSearchEnabled} />
+        <button
+          type="button"
+          className={clsx('search-toggle', searchEnabled && 'is-on')}
+          title="开启后，向模型请求中写入联网搜索参数（由模型服务决定是否生效）"
+          aria-pressed={searchEnabled}
+          onClick={() => setSearchEnabled(!searchEnabled)}
+        >
+          <Globe size={13} />
+          联网
+        </button>
       </div>
       <Textarea
         value={value}
@@ -197,7 +206,7 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
       <div className="chat-composer__foot">
         <span className="chat-composer__hint">
           {searchEnabled
-            ? '已开启联网：本次提问会发送到你配置的搜索服务 · 仅支持纯文本，图片/文件粘贴会被拒绝'
+            ? '已开启联网：将向模型请求写入联网搜索参数（是否生效由模型服务决定） · 仅支持纯文本，图片/文件粘贴会被拒绝'
             : '仅支持纯文本，图片/文件粘贴会被拒绝 · Enter 发送 / Shift+Enter 换行'}
         </span>
         {generating ? (

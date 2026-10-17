@@ -1,5 +1,4 @@
 import { Link2 } from 'lucide-react'
-import './search.css'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
 import type { MessagePart } from '../../domain/message'

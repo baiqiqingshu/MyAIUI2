@@ -1,15 +1,15 @@
 import { useUiStore } from './uiStore'
 import { AssistantRail } from '../features/assistants/AssistantList'
 import { AssistantEditor } from '../features/assistants/AssistantEditor'
-import { TopicPanel } from '../features/topics/TopicList'
+import { TopicPanel } from '../features/topics/TopicPanel'
 import { ChatWorkspace } from '../features/chat/ChatWorkspace'
-import { ProviderDrawer } from '../features/providers/ProviderDrawer'
-import { SearchSettingsDialog } from '../features/search/SearchToggle'
+import { ProvidersPage } from '../features/providers/ProvidersPage'
 import { ToastHost } from '../components/ui'
 
 export function App() {
   const ready = useUiStore((s) => s.ready)
   const fatalError = useUiStore((s) => s.fatalError)
+  const mainView = useUiStore((s) => s.mainView)
 
   if (!ready) {
     return (
@@ -35,13 +35,19 @@ export function App() {
   return (
     <div className="app-shell">
       <AssistantRail />
-      <TopicPanel />
-      <main className="app-main">
-        <ChatWorkspace />
-      </main>
+      {mainView === 'chat' ? (
+        <>
+          <TopicPanel />
+          <main className="app-main">
+            <ChatWorkspace />
+          </main>
+        </>
+      ) : (
+        <main className="app-main app-main--full">
+          <ProvidersPage />
+        </main>
+      )}
       <AssistantEditor />
-      <ProviderDrawer />
-      <SearchSettingsDialog />
       <ToastHost />
     </div>
   )

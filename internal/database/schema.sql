@@ -1,6 +1,8 @@
 -- MyAIUI2 原创实现（表结构照抄实施方案 §9.2，一次性 schema，由 user_version 控制执行）。
 -- v2 起消息不再是线性列表：messages.parent_id 组成树，兄弟变体 = 同一父节点下的多个子节点，
 -- topics.active_node_id 记录当前活动分支的末端节点（详见 migration_v2.sql）。
+-- v3 起话题支持目录与收藏：topic_folders 组织目录树（zone 空串=普通区、'fav'=收藏区），
+-- topics.folder_id/favorite/sort_order 记录话题所在容器与排序下标（详见 migration_v3.sql）。
 -- 注意：本文件由 execScript 按分号拆分执行，不要写触发器/存储过程等多语句块。
 
 CREATE TABLE providers (
@@ -50,6 +52,20 @@ CREATE TABLE topics (
   assistant_id TEXT NOT NULL REFERENCES assistants(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   active_node_id TEXT NOT NULL DEFAULT '',
+  folder_id TEXT NOT NULL DEFAULT '',
+  favorite INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE topic_folders (
+  id TEXT PRIMARY KEY,
+  assistant_id TEXT NOT NULL REFERENCES assistants(id) ON DELETE CASCADE,
+  parent_id TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  zone TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -75,6 +91,7 @@ CREATE TABLE settings (
 );
 
 CREATE INDEX idx_topics_assistant_updated ON topics(assistant_id, updated_at DESC);
+CREATE INDEX idx_topic_folders_assistant ON topic_folders(assistant_id, zone, sort_order);
 CREATE INDEX idx_messages_topic_order ON messages(topic_id, sort_order);
 CREATE INDEX idx_messages_topic_parent ON messages(topic_id, parent_id, sort_order);
 CREATE INDEX idx_models_provider_enabled ON models(provider_id, enabled);

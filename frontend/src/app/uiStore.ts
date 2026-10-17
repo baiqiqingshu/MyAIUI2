@@ -8,6 +8,7 @@ import type {
   ProviderDTO,
   SearchSettingsDTO,
   TopicDTO,
+  TopicFolderDTO,
 } from '../domain/dto'
 
 export type ToastKind = 'info' | 'success' | 'error'
@@ -17,11 +18,12 @@ export interface ToastItem {
   text: string
 }
 
+/** 主区视图：chat = 话题栏 + 对话工作区，models = 模型服务整页。 */
+export type MainView = 'chat' | 'models'
+
 export type DrawerState =
   | { kind: 'none' }
   | { kind: 'assistant'; assistantId: string } // 空字符串 = 新建助手
-  | { kind: 'providers' }
-  | { kind: 'search' }
 
 const EMPTY_SETTINGS: AppSettingsDTO = { ActiveAssistantID: '', ActiveTopicID: '', Theme: 'system' }
 const EMPTY_SEARCH: SearchSettingsDTO = {
@@ -54,8 +56,11 @@ interface UiState {
   providers: ProviderDTO[]
   models: ModelDTO[]
   topics: TopicDTO[]
+  /** 当前助手的话题目录（普通区 + 收藏区），随 loadTopics 一起刷新 */
+  folders: TopicFolderDTO[]
   activeAssistantId: string
   activeTopicId: string
+  mainView: MainView
   drawer: DrawerState
   toasts: ToastItem[]
 
@@ -70,8 +75,11 @@ interface UiState {
 
   selectAssistant: (assistantId: string) => void
   selectTopic: (topicId: string) => void
+  setMainView: (view: MainView) => void
   refreshAssistants: (preferId?: string) => Promise<void>
   refreshTopics: (assistantId?: string) => Promise<void>
+  /** 拉取话题目录；assistantId 缺省为当前助手 */
+  refreshFolders: (assistantId?: string) => Promise<void>
   refreshProviders: () => Promise<void>
   refreshModels: () => Promise<void>
 
@@ -94,16 +102,29 @@ export const useUiStore = create<UiState>()((set, get) => {
     })
   }
 
-  async function loadTopics(assistantId: string) {
+  async function loadFolders(assistantId: string) {
     if (!assistantId) {
-      set({ topics: [], activeTopicId: '' })
+      set({ folders: [] })
       return
     }
+    set({ folders: await appApi.ListTopicFolders(assistantId) })
+  }
+
+  async function loadTopics(assistantId: string) {
+    if (!assistantId) {
+      set({ topics: [], folders: [], activeTopicId: '' })
+      return
+    }
+    // 目录与话题一起拉取；目录接口失败不阻塞话题列表（降级为空目录）。
+    const foldersPromise = appApi
+      .ListTopicFolders(assistantId)
+      .catch(() => [] as TopicFolderDTO[])
     const topics = await appApi.ListTopics(assistantId)
+    const folders = await foldersPromise
     const current = get().activeTopicId
     const stillThere = topics.some((t) => t.ID === current)
     const next = stillThere ? current : (topics[0]?.ID ?? '')
-    set({ topics, activeTopicId: next })
+    set({ topics, folders, activeTopicId: next })
     if (next !== current) persistSettings({ ActiveTopicID: next })
   }
 
@@ -118,8 +139,10 @@ export const useUiStore = create<UiState>()((set, get) => {
     providers: [],
     models: [],
     topics: [],
+    folders: [],
     activeAssistantId: '',
     activeTopicId: '',
+    mainView: 'chat',
     drawer: { kind: 'none' },
     toasts: [],
 
@@ -162,8 +185,13 @@ export const useUiStore = create<UiState>()((set, get) => {
         providers: data.Providers ?? [],
         models: data.Models ?? [],
         topics,
+        folders: [],
         activeAssistantId: preferredAssistant,
         activeTopicId: preferredTopic,
+      })
+      // Bootstrap 载荷不含目录：置空后立即异步拉取（失败静默，目录不是启动主链路）。
+      void loadFolders(preferredAssistant).catch(() => {
+        /* 目录拉取失败不影响启动 */
       })
     },
 
@@ -176,7 +204,7 @@ export const useUiStore = create<UiState>()((set, get) => {
     },
 
     selectAssistant(assistantId) {
-      set({ activeAssistantId: assistantId, topics: [], activeTopicId: '' })
+      set({ activeAssistantId: assistantId, topics: [], folders: [], activeTopicId: '' })
       persistSettings({ ActiveAssistantID: assistantId, ActiveTopicID: '' })
       loadTopics(assistantId).catch((err: unknown) => {
         get().showToast(`加载话题失败：${String(err)}`, 'error')
@@ -186,6 +214,10 @@ export const useUiStore = create<UiState>()((set, get) => {
     selectTopic(topicId) {
       set({ activeTopicId: topicId })
       persistSettings({ ActiveTopicID: topicId })
+    },
+
+    setMainView(view) {
+      set({ mainView: view })
     },
 
     async refreshAssistants(preferId) {
@@ -201,6 +233,10 @@ export const useUiStore = create<UiState>()((set, get) => {
 
     async refreshTopics(assistantId) {
       await loadTopics(assistantId ?? get().activeAssistantId)
+    },
+
+    async refreshFolders(assistantId) {
+      await loadFolders(assistantId ?? get().activeAssistantId)
     },
 
     async refreshProviders() {

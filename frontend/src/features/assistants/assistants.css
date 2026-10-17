@@ -46,7 +46,7 @@
 
 .as-rail__item.is-active {
   background: var(--accent-soft);
-  border-color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
 }
 
 .as-rail__emoji {
@@ -69,6 +69,7 @@
   background: var(--bg-elevated);
   color: var(--text-secondary);
   box-shadow: var(--shadow-sm);
+  transition: color 0.12s ease, border-color 0.12s ease;
 }
 
 .as-rail__cell:hover .as-rail__edit,

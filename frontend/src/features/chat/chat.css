@@ -1,11 +1,17 @@
 /* 对话工作台样式：类名前缀统一 chat-。颜色只用 tokens.css 变量。 */
 
 .chat {
+  position: relative; /* 右缘消息小点轨 .chat-dots 以此为定位基准 */
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   min-width: 0;
+}
+
+/* 铺满模式：消息列不再限宽（默认居中读宽由 .chat-list 的 max-width 控制） */
+.chat--full .chat-list {
+  max-width: none;
 }
 
 /* 顶栏：助手 + 话题 */
@@ -125,10 +131,13 @@
   line-height: 1.75;
 }
 
+/* 用户气泡：accent-soft 底 + 细描边，右下角收小做出 IM 气泡指向感 */
 .chat-msg--user .chat-msg__body {
   max-width: 78%;
-  padding: 10px 14px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
   border-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--text-primary);
 }
@@ -155,6 +164,17 @@
   gap: var(--space-2);
   color: var(--text-secondary);
   font-size: 13px;
+  animation: chat-typing-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes chat-typing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .chat-msg__actions {
@@ -179,6 +199,7 @@
   background: transparent;
   color: var(--text-tertiary);
   font-size: 12px;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .chat-action:hover:not(:disabled) {
@@ -238,10 +259,12 @@
   line-height: 1.4;
 }
 
-/* reasoning 折叠区 */
+/* reasoning 折叠区：浅底卡片 + 左侧描边，与正文区分开 */
 .chat-reasoning {
-  border-left: 3px solid var(--border-strong);
-  padding-left: var(--space-3);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-subtle);
   color: var(--text-secondary);
   font-size: 13px;
 }
@@ -250,6 +273,7 @@
   cursor: pointer;
   color: var(--text-tertiary);
   font-size: 12px;
+  font-weight: 500;
   user-select: none;
 }
 
@@ -263,7 +287,7 @@
 
 /* 错误卡 */
 .chat-error-card {
-  border: 1px solid var(--danger);
+  border: 1px solid color-mix(in oklch, var(--danger) 35%, transparent);
   background: var(--danger-soft);
   border-radius: var(--radius-md);
   padding: 10px 12px;
@@ -363,7 +387,7 @@
   line-height: 1.5;
 }
 
-/* 无模型提示条 */
+/* 无模型提示条：warning-soft 底 + 半透明描边，深色下不刺眼 */
 .chat-notice {
   display: flex;
   align-items: center;
@@ -371,13 +395,162 @@
   gap: var(--space-3);
   margin: 0 var(--space-5) var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--warning);
+  border: 1px solid color-mix(in oklch, var(--warning) 45%, transparent);
   border-radius: var(--radius-md);
-  color: var(--warning);
+  background: var(--warning-soft);
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 /* Markdown 容器内边距交给 .chat-list 控制 */
 .chat-md > *:last-child {
   margin-bottom: 0;
+}
+
+/* 联网开关（模型 API 自带联网参数注入）；样式沿用原 search-toggle 命名 */
+.search-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.search-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.search-toggle.is-on {
+  background: var(--accent-soft);
+  border-color: color-mix(in oklch, var(--accent) 35%, transparent);
+  color: var(--accent-text);
+}
+
+/* 历史消息中的搜索结果卡片（旧的 SearXNG 预搜遗留数据仍会渲染） */
+.search-card {
+  display: block;
+  max-width: 560px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  text-decoration: none;
+}
+
+.search-card:hover {
+  border-color: var(--accent);
+}
+
+.search-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-tertiary);
+}
+
+.search-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.search-card__host {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+
+.search-card__snippet {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ----------------------------------------------------------- 消息小点导航
+   消息区右缘（滚动条内侧）的竖向圆点轨：每条持久化消息一个点，
+   悬停出预览浮层，点击平滑滚动到对应消息行。 */
+.chat-dots {
+  position: absolute;
+  right: 10px; /* 滚动条（6px）内侧 */
+  top: 50%;
+  transform: translateY(-50%);
+  /* 限高 + 折列：消息很多时向左分出第二列；
+     不能用 overflow:auto 收高——会把向左弹出的预览浮层裁掉 */
+  max-height: 55%;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap-reverse;
+  align-items: center;
+  gap: 7px;
+  padding: 4px;
+  z-index: 4;
+}
+
+.chat-dots__dot {
+  position: relative; /* 预览浮层以此为定位基准 */
+  flex: none;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  /* assistant 用 border 色系 */
+  background: var(--border-strong);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+/* user 用半透明 accent */
+.chat-dots__dot.is-user {
+  background: color-mix(in oklch, var(--accent) 55%, transparent);
+}
+
+.chat-dots__dot:hover,
+.chat-dots__dot:focus-visible,
+.chat-dots__dot.is-active {
+  background: var(--accent);
+  transform: scale(1.4);
+}
+
+.chat-dots__preview {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 220px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 5;
+}
+
+.chat-dots__dot:hover .chat-dots__preview,
+.chat-dots__dot:focus-visible .chat-dots__preview {
+  opacity: 1;
+}
+
+.chat-dots__preview-role {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 600;
+  color: var(--text-primary);
 }

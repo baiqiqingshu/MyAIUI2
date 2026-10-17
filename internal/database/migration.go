@@ -15,8 +15,11 @@ var schemaSQL string
 //go:embed migration_v2.sql
 var migrationV2SQL string
 
+//go:embed migration_v3.sql
+var migrationV3SQL string
+
 // schemaVersion 当前 schema 版本（PRAGMA user_version 目标值）。
-const schemaVersion = 2
+const schemaVersion = 3
 
 // migrate 幂等执行 schema：版本已达标直接返回，否则在单事务内执行建表或增量迁移并写入版本号。
 func migrate(ctx context.Context, handle *sql.DB) error {
@@ -40,8 +43,16 @@ func migrate(ctx context.Context, handle *sql.DB) error {
 			return err
 		}
 	} else {
-		if err := execScript(ctx, tx, migrationV2SQL, "升级数据库结构失败"); err != nil {
-			return err
+		// 按版本逐级增量升级：v1 库会顺序跑完 v2、v3 两个迁移脚本。
+		if version < 2 {
+			if err := execScript(ctx, tx, migrationV2SQL, "升级数据库结构到 v2 失败"); err != nil {
+				return err
+			}
+		}
+		if version < 3 {
+			if err := execScript(ctx, tx, migrationV3SQL, "升级数据库结构到 v3 失败"); err != nil {
+				return err
+			}
 		}
 	}
 	// user_version 不支持参数占位符，此处只拼接编译期常量。

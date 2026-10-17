@@ -17,8 +17,9 @@ export interface BranchPanelProps {
 const EMPTY_NODES: TreeNodeDTO[] = []
 
 export function BranchPanel({ open, onClose }: BranchPanelProps) {
-  const tree = useChatStore((s) => s.tree)
-  const generating = useChatStore((s) => s.generating)
+  // 分支数据按当前话题的会话取：chatStore.activeTopicId 与 uiStore 同步，用它保证与会话一致。
+  const tree = useChatStore((s) => s.sessions[s.activeTopicId]?.tree ?? null)
+  const generating = useChatStore((s) => s.sessions[s.activeTopicId]?.generating ?? false)
   const switchActiveNode = useChatStore((s) => s.switchActiveNode)
   const refresh = useChatStore((s) => s.refresh)
   const activeTopicId = useUiStore((s) => s.activeTopicId)

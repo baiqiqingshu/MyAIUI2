@@ -92,7 +92,10 @@ export function MessageItem({
   }
 
   return (
-    <article className={isUser ? 'chat-msg chat-msg--user' : 'chat-msg chat-msg--assistant'}>
+    <article
+      className={isUser ? 'chat-msg chat-msg--user' : 'chat-msg chat-msg--assistant'}
+      data-mid={message.ID}
+    >
       <div className="chat-msg__body">
         {editing ? (
           <div className="chat-edit" ref={editRef}>
