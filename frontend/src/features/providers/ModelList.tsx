@@ -47,10 +47,13 @@ export function ModelList({ providerId }: { providerId: string }) {
   const filtering = query.trim() !== ''
   const filteredModels = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return models
-    return models.filter(
-      (m) => m.DisplayName.toLowerCase().includes(q) || m.RemoteID.toLowerCase().includes(q),
-    )
+    const list = q
+      ? models.filter(
+          (m) => m.DisplayName.toLowerCase().includes(q) || m.RemoteID.toLowerCase().includes(q),
+        )
+      : models
+    // 启用的模型排在最前；sort 稳定，组内保持原有顺序。
+    return [...list].sort((a, b) => Number(b.Enabled) - Number(a.Enabled))
   }, [models, query])
 
   // 勾选集中属于本服务商且仍存活的模型（计数与批量操作都以它为准）。
