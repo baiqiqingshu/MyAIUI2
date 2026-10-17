@@ -20,7 +20,7 @@ frontend/wailsjs/
 *.pem
 
 # Local runtime data
-data/
+/data/
 *.db
 *.db-shm
 *.db-wal
