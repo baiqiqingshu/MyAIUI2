@@ -186,6 +186,15 @@ export interface RelayStatusDTO {
   Error: string
 }
 
+export interface ProxySettingsDTO {
+  URL: string
+  VerifySSL: boolean
+}
+
+export interface SaveProxySettingsDTO {
+  URL: string
+}
+
 export interface MessageDTO {
   ID: string
   TopicID: string

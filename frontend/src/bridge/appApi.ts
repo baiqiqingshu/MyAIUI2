@@ -14,6 +14,7 @@ import type {
   MoveTopicFolderDTO,
   ProviderDTO,
   ProviderRequestDTO,
+  ProxySettingsDTO,
   RelayStatusDTO,
   RequestHandleDTO,
   SaveAppSettingsDTO,
@@ -22,6 +23,7 @@ import type {
   SaveMessageSnapshotDTO,
   SaveModelDTO,
   SaveProviderDTO,
+  SaveProxySettingsDTO,
   SaveSearchSettingsDTO,
   SaveTopicFolderDTO,
   SearchRequestDTO,
@@ -127,6 +129,12 @@ export const appApi = {
   // 内置中转：内网环境下模型请求经本机 Python 进程转发。
   GetRelayStatus: () => call<RelayStatusDTO>('GetRelayStatus'),
   SetRelayEnabled: (enabled: boolean) => call<RelayStatusDTO>('SetRelayEnabled', enabled),
+
+  GetProxySettings: () => call<ProxySettingsDTO>('GetProxySettings'),
+  SaveProxySettings: (input: SaveProxySettingsDTO) =>
+    call<ProxySettingsDTO>('SaveProxySettings', input),
+  LoadRemoteImage: (messageId: string, imageURL: string) =>
+    call<string>('LoadRemoteImage', messageId, imageURL),
 
   OpenExternalURL: (url: string) => call<void>('OpenExternalURL', url),
 }

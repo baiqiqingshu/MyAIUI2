@@ -67,6 +67,29 @@
   color: var(--danger);
 }
 
+.proxy-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: 12px;
+}
+
+.proxy-card__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.proxy-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* Relay 状态徽标：运行=success、异常=danger、未启用=中性灰 */
 .relay-status {
   display: inline-flex;

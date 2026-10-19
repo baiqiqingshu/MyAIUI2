@@ -2,7 +2,7 @@
 """MyAIUI2 本地 HTTP 中转（仅 Python 标准库，由 Go 侧拉起）。
 
 内网环境下 Go 进程直连 http/https 会被系统代理拦截失败；Go 侧把所有受限外发
-请求改发到 http://127.0.0.1:<port>/relay，由本进程用 http.client 直连目标
+请求改发到 http://127.0.0.1:<port>/relay，由本进程用 http.client 直连或经配置的代理访问目标
 （http.client 不读环境代理、不跟随重定向）；https 关闭证书校验（内网自签
 证书/AI 中转站场景）。
 
@@ -12,17 +12,19 @@
     X-Relay-Method   目标请求方法（默认 POST）
     X-Relay-URL      目标绝对 URL（必填，仅 http/https）
     X-Relay-Timeout  单次 socket 操作超时秒数（默认 600，上限 3600）
+    X-Relay-Proxy    可选 HTTP 代理 URL，支持 user:password 认证；空值直连
 
 就绪后向 stdout 打印一行 "RELAY_READY 127.0.0.1:<port>"（Go 侧以此探测启动），
 启动失败打印 "RELAY_ERROR <msg>" 并以退出码 1 退出。
 """
 
 import argparse
+import base64
 import http.client
 import ssl
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 READ_CHUNK = 32768
 # 入站请求体上限（Go 侧限制 16MB，这里留一倍余量防御异常流量）。
@@ -97,6 +99,7 @@ class RelayHandler(BaseHTTPRequestHandler):
         # responded=False 表示还没有向上游响应写任何字节，此时出错还能回 502；
         # 一旦开始回写上游响应（含 chunked 流）就只能直接断开。
         responded = False
+        self._response_started = False
         try:
             if self.path != "/relay":
                 self._send_plain(404, "not found")
@@ -105,8 +108,11 @@ class RelayHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass  # 客户端断连，静默收尾
         except Exception as exc:
-            if not responded:
-                self._send_plain(502, "upstream error: %s" % _short(exc))
+            if not responded and not self._response_started:
+                # 代理异常可能回显认证信息，不向客户端返回未经处理的异常文本。
+                detail = ("proxy request failed (%s)" % exc.__class__.__name__
+                          if self.headers.get("X-Relay-Proxy") else _short(exc))
+                self._send_plain(502, "upstream error: %s" % detail)
         finally:
             self.close_connection = True
 
@@ -136,6 +142,26 @@ class RelayHandler(BaseHTTPRequestHandler):
             self._send_plain(400, "missing or invalid X-Relay-URL")
             return True
 
+        proxy = None
+        proxy_auth = None
+        raw_proxy = (self.headers.get("X-Relay-Proxy") or "").strip()
+        if raw_proxy:
+            try:
+                proxy = urlparse(raw_proxy)
+                if (proxy.scheme != "http" or not proxy.hostname
+                        or proxy.path not in ("", "/") or proxy.query or proxy.fragment
+                        or any(char.isspace() for char in raw_proxy)
+                        or (proxy.port is not None and proxy.port < 1)):
+                    raise ValueError("invalid proxy")
+                if proxy.username is not None:
+                    credentials = "%s:%s" % (unquote(proxy.username),
+                                              unquote(proxy.password or ""))
+                    proxy_auth = "Basic " + base64.b64encode(
+                        credentials.encode("utf-8")).decode("ascii")
+            except (ValueError, UnicodeError):
+                self._send_plain(400, "invalid X-Relay-Proxy (expected HTTP proxy URL)")
+                return True
+
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
@@ -158,25 +184,40 @@ class RelayHandler(BaseHTTPRequestHandler):
         if body is not None:
             headers["Content-Length"] = str(len(body))
 
-        # http.client 直连目标：不走任何代理，也不会跟随重定向。
+        # http.client 不读取环境代理；显式代理同时适用于 HTTP 和 HTTPS。
+        host = proxy.hostname if proxy else parsed.hostname
+        port = (proxy.port or 80) if proxy else parsed.port
         if parsed.scheme == "https":
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             conn = http.client.HTTPSConnection(
-                parsed.hostname, port=parsed.port,
+                host, port=port,
                 timeout=timeout_s, context=ctx)
+            if proxy:
+                tunnel_headers = {"Proxy-Authorization": proxy_auth} if proxy_auth else {}
+                conn.set_tunnel(parsed.hostname, parsed.port or 443, headers=tunnel_headers)
         else:
             conn = http.client.HTTPConnection(
-                parsed.hostname, port=parsed.port, timeout=timeout_s)
+                host, port=port, timeout=timeout_s)
+            if proxy_auth:
+                headers["Proxy-Authorization"] = proxy_auth
 
         path = parsed.path or "/"
         if parsed.query:
             path += "?" + parsed.query
+        if proxy and parsed.scheme == "http":
+            # absolute-form 只含目标地址，代理凭据仅发往代理认证头。
+            authority = parsed.hostname
+            if ":" in authority:
+                authority = "[%s]" % authority
+            if parsed.port is not None:
+                authority += ":%d" % parsed.port
+            path = "http://" + authority + path
 
-        conn.request(method, path, body=body, headers=headers)
-        resp = conn.getresponse()
         try:
+            conn.request(method, path, body=body, headers=headers)
+            resp = conn.getresponse()
             self.send_response(resp.status)
             for name, value in resp.getheaders():
                 lname = name.lower()
@@ -185,11 +226,16 @@ class RelayHandler(BaseHTTPRequestHandler):
                     continue
                 self.send_header(name, value)
             self.send_header("Transfer-Encoding", "chunked")
+            # 每个中转请求都会关闭连接，明确告知 Go 不要复用它。
+            self.send_header("Connection", "close")
+            # end_headers 可能已发送部分数据后抛错，此后不能再写第二个 HTTP 响应。
+            self._response_started = True
             self.end_headers()
 
             remaining = MAX_RESPONSE_BYTES
             while True:
-                chunk = resp.read(READ_CHUNK)
+                # read(n) 会等待凑满 n 字节；read1 及时返回当前到达的 SSE 数据。
+                chunk = resp.read1(READ_CHUNK)
                 if not chunk:
                     break
                 remaining -= len(chunk)
@@ -198,6 +244,7 @@ class RelayHandler(BaseHTTPRequestHandler):
                 self.wfile.write(("%x\r\n" % len(chunk)).encode("ascii"))
                 self.wfile.write(chunk)
                 self.wfile.write(b"\r\n")
+                self.wfile.flush()
             self.wfile.write(b"0\r\n\r\n")
         finally:
             conn.close()

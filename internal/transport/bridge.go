@@ -5,6 +5,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -62,8 +63,9 @@ type Emit func(event string, payload any)
 
 // Bridge 管理进行中的受限请求；Start 立即返回，结果通过事件推送。
 type Bridge struct {
-	emit Emit
-	rt   *http.Transport
+	emit  Emit
+	rt    *http.Transport
+	proxy atomic.Pointer[proxyTransport]
 
 	// relayAddr 非空时受限请求改发本地 Python 中转（如 http://127.0.0.1:52341）。
 	relayAddr atomic.Value // string
@@ -88,8 +90,9 @@ func NewBridge(emit Emit) *Bridge {
 		emit:   emit,
 		active: make(map[string]*activeRequest),
 		rt: &http.Transport{
-			// 代理只能由 BaseURL 决定，不读环境代理，避免请求被改道。
+			// 本地中转连接始终直连；外发请求由显式代理配置决定，不读环境代理。
 			Proxy:                 nil,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true}, // 内网自签证书：verify_ssl=false。
 			ForceAttemptHTTP2:     true,
 			MaxIdleConns:          8,
 			IdleConnTimeout:       90 * time.Second,
@@ -233,6 +236,7 @@ func (b *Bridge) do(ctx context.Context, req Request, target Target, endpoint *u
 	// origin/path 校验已在 Start 的 ResolveEndpoint 完成；
 	// 中转只改实际投递地址：TCP 连接打到 127.0.0.1，真实目标放进 X-Relay-URL。
 	relayAddr := b.relay()
+	rt, proxyURL := b.outboundTransport(relayAddr)
 	wireMethod, wireURL := method, endpoint.String()
 	if relayAddr != "" {
 		wireMethod = http.MethodPost
@@ -258,6 +262,7 @@ func (b *Bridge) do(ctx context.Context, req Request, target Target, endpoint *u
 		// X-Relay-* 在过滤/注入之后写入，前端伪造的同名头一律被覆盖。
 		hreq.Header.Set("X-Relay-Method", method)
 		hreq.Header.Set("X-Relay-URL", endpoint.String())
+		hreq.Header.Set("X-Relay-Proxy", proxyURL)
 		if deadline, ok := ctx.Deadline(); ok {
 			secs := int64(time.Until(deadline).Seconds()) + 1
 			if secs < 1 {
@@ -278,7 +283,7 @@ func (b *Bridge) do(ctx context.Context, req Request, target Target, endpoint *u
 	hreq = hreq.WithContext(httptrace.WithClientTrace(hreq.Context(), trace))
 
 	client := &http.Client{
-		Transport:     b.rt,
+		Transport:     rt,
 		CheckRedirect: b.checkRedirect(endpoint),
 	}
 	if relayAddr != "" {

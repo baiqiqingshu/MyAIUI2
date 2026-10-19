@@ -10,6 +10,7 @@ import type { ProviderDTO, RelayStatusDTO, SaveProviderDTO } from '../../domain/
 import { describeError } from './errors'
 import { ModelList } from './ModelList'
 import { ProviderForm } from './ProviderForm'
+import { ProxyCard } from './ProxyCard'
 
 // 模型服务主页（主区 tab）：内置中转卡片 + 服务商卡片列表（测试/启停/编辑/删除）+ 展开的模型列表。
 export function ProvidersPage() {
@@ -103,6 +104,7 @@ export function ProvidersPage() {
       <div className="providers-page__scroll scroll-area">
         <div className="providers-page__inner">
           <RelayCard />
+          <ProxyCard />
 
           {formOpen ? (
             <ProviderForm

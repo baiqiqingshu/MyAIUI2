@@ -188,7 +188,7 @@ export function MessageItem({
         ) : (
           <div className="chat-msg__parts">
             {parts.map((part, index) => (
-              <PartView key={`${part.type}-${index}`} part={part} streaming={streaming} />
+              <PartView key={`${part.type}-${index}`} part={part} streaming={streaming} messageId={message.ID} />
             ))}
           </div>
         )}
@@ -274,7 +274,7 @@ export function MessageItem({
   )
 }
 
-function PartView({ part, streaming }: { part: MessagePart; streaming: boolean }) {
+function PartView({ part, streaming, messageId }: { part: MessagePart; streaming: boolean; messageId: string }) {
   switch (part.type) {
     case 'text':
       return <MarkdownText text={part.text} streaming={streaming} />
@@ -288,7 +288,7 @@ function PartView({ part, streaming }: { part: MessagePart; streaming: boolean }
     case 'search-result':
       return <SearchResultCard part={part} />
     case 'image':
-      return <ImageResult part={part} />
+      return <ImageResult part={part} messageId={messageId} streaming={streaming} />
     case 'error':
       return (
         <div className="chat-error-card">

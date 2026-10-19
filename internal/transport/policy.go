@@ -10,7 +10,7 @@ import (
 )
 
 // maxPathLength ResolveEndpoint 允许的路径（含 query）长度上限。
-const maxPathLength = 1024
+const maxPathLength = 16 << 10 // 为远程图片的签名 URL 留出空间；模型路径仍由 API 单独限制。
 
 // 不透传给前端的响应头：逐跳头 + Cookie 类。
 var hopByHopHeaders = map[string]bool{
@@ -26,7 +26,7 @@ var hopByHopHeaders = map[string]bool{
 	"set-cookie2":         true,
 }
 
-// ResolveEndpoint 校验 base+path：同 scheme/host/port、相对路径、无 `..`、长度上限 1024。
+// ResolveEndpoint 校验 base+path：同 scheme/host/port、相对路径、无 `..`、长度上限 16 KiB。
 //
 // BaseURL 自带路径前缀（如 `https://api.deepseek.com/v1`）时，前缀会按需补齐：
 // 前端 SDK 传来的路径已含前缀（`/v1/chat/completions`）则原样使用，
@@ -93,6 +93,9 @@ func FilterRequestHeaders(in map[string]string) map[string]string {
 		value := strings.TrimSpace(v)
 		if name == "" || value == "" {
 			continue
+		}
+		if strings.HasPrefix(name, "x-relay-") {
+			continue // 中转控制头只允许后端注入，也不能随直连请求发到上游。
 		}
 		if name == "content-type" || name == "accept" || strings.HasPrefix(name, "x-") {
 			out[name] = value

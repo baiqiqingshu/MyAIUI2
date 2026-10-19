@@ -78,6 +78,7 @@ func (b *Bridge) SearchSearxng(ctx context.Context, target Target, query string,
 
 	// 中转开启时改发本地 Python 中转（与 do() 同一约定：真实目标放进 X-Relay-URL）。
 	relayAddr := b.relay()
+	rt, proxyURL := b.outboundTransport(relayAddr)
 	if relayAddr != "" {
 		relayReq, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimSuffix(relayAddr, "/")+"/relay", nil)
 		if err != nil {
@@ -86,12 +87,13 @@ func (b *Bridge) SearchSearxng(ctx context.Context, target Target, query string,
 		relayReq.Header = hreq.Header
 		relayReq.Header.Set("X-Relay-Method", http.MethodGet)
 		relayReq.Header.Set("X-Relay-URL", endpoint.String())
+		relayReq.Header.Set("X-Relay-Proxy", proxyURL)
 		relayReq.Header.Set("X-Relay-Timeout", "20")
 		hreq = relayReq
 	}
 
 	client := &http.Client{
-		Transport:     b.rt,
+		Transport:     rt,
 		CheckRedirect: b.checkRedirect(endpoint),
 	}
 	if relayAddr != "" {

@@ -60,6 +60,7 @@ const (
 // 除契约 §2.7 列出的方法外不额外导出方法（绑定只依赖这些方法）。
 type AppAPI struct {
 	mu       sync.Mutex
+	proxyMu  sync.Mutex
 	ctx      context.Context
 	db       *database.DB
 	started  bool
@@ -141,6 +142,14 @@ func (a *AppAPI) Start(ctx context.Context) error {
 		a.startErr = err
 		a.mu.Unlock()
 		logging.Errorf("启动初始化失败: %v", err)
+		return err
+	}
+
+	// 在任何外发请求之前恢复代理；配置损坏时阻止启动，避免静默绕过代理。
+	if err := a.restoreProxy(); err != nil {
+		a.mu.Lock()
+		a.startErr = err
+		a.mu.Unlock()
 		return err
 	}
 
