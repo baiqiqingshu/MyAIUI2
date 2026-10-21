@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Globe } from 'lucide-react'
-import { Button, Field, Input } from '../../components/ui'
+import { Eye, EyeOff, Globe } from 'lucide-react'
+import { Button, Field, IconButton, Input } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
 import type { ProxySettingsDTO } from '../../domain/dto'
@@ -22,6 +22,7 @@ export function ProxyCard() {
   const showToast = useUiStore((s) => s.showToast)
   const [settings, setSettings] = useState<ProxySettingsDTO | null>(null)
   const [url, setURL] = useState('')
+  const [urlVisible, setURLVisible] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -31,6 +32,7 @@ export function ProxyCard() {
   useEffect(() => {
     let alive = true
     setLoading(true)
+    setURLVisible(false)
     setLoadError('')
     appApi.GetProxySettings()
       .then((result) => {
@@ -49,6 +51,7 @@ export function ProxyCard() {
 
   async function save() {
     if (loading || saving || loadError) return
+    setURLVisible(false)
     const validation = validateProxy(url)
     setError(validation)
     if (validation) return
@@ -76,13 +79,23 @@ export function ProxyCard() {
       </header>
       <form className="proxy-card__form" onSubmit={(event) => { event.preventDefault(); void save() }}>
         <div onBlur={() => setError(validateProxy(url))}>
-          <Field label="代理地址" hint="支持 http://[用户名:密码@]主机:端口；留空并保存即可禁用。">
-            <Input
-              value={url}
-              onChange={(value) => { setURL(value); setError('') }}
-              placeholder="http://127.0.0.1:7890"
-              disabled={loading || saving || !!loadError}
-            />
+          <Field label="代理地址" hint="支持 http://[用户名:密码@]主机:端口；留空并保存即可禁用。地址默认隐藏，可点击眼睛图标查看。">
+            <div className="ui-field__row">
+              <Input
+                type={urlVisible ? 'text' : 'password'}
+                value={url}
+                onChange={(value) => { setURL(value); setError('') }}
+                placeholder="http://127.0.0.1:7890"
+                disabled={loading || saving || !!loadError}
+              />
+              <IconButton
+                title={urlVisible ? '隐藏代理地址' : '显示代理地址（含账号密码）'}
+                onClick={() => setURLVisible((value) => !value)}
+                disabled={loading || saving || !!loadError}
+              >
+                {urlVisible ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+              </IconButton>
+            </div>
           </Field>
         </div>
         <p className="proxy-card__hint">覆盖模型验证、模型列表、对话、图片与联网搜索。支持自签名证书，证书校验已关闭（verify_ssl=false）。</p>
