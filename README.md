@@ -42,6 +42,16 @@ python temp/fake_provider.py 8791     # 然后在应用里把模型服务地址�
 
 提问里包含「代码」会返回多语言代码块，包含「图」会返回 ` ```mermaid ` 流程图，包含「长文」会走长推理流式路径，便于验证高亮、Mermaid 渲染与流式压力。
 
+## 单 HTML Web 版
+
+同一套前端可额外构建成一个 `.html` 文件，浏览器（或任意静态服务）打开即用，数据存 localStorage：
+
+```powershell
+pnpm --dir frontend build:web    # → frontend/dist-web/index.html（单文件 ~6.4MB）
+```
+
+桌面端构建不受影响；运行时按 `window.go` 是否存在自动在 Wails 绑定与浏览器实现间切换。密钥明文存 localStorage、模型请求直连 provider（受 CORS 约束），详见 [docs/SINGLE_HTML_WEB.md](docs/SINGLE_HTML_WEB.md)。
+
 ## 内网代理
 
 在「模型服务 → 网络代理」填写 `http://代理主机:端口` 并保存；需要认证时可填写 `http://用户名:密码@代理主机:端口`（特殊字符需 URL 编码）。留空保存即可禁用，默认不配置代理。当前支持 HTTP 正向代理，通过 CONNECT 转发 HTTPS，不支持 SOCKS 或 `https://` 代理地址。

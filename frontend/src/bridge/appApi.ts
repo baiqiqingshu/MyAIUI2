@@ -36,8 +36,10 @@ import type {
   TopicTreeDTO,
   TurnDTO,
 } from '../domain/dto'
+import { webApi } from './web'
 
-// 前端唯一允许触达后端的位置：全部通过 Wails 进程内绑定。
+// 前端唯一允许触达后端的位置：桌面端走 Wails 进程内绑定，浏览器环境走 bridge/web
+// 的 localStorage 实现（无 window.go 时自动落入，vite dev 也走这条路调试）。
 // 这里手写薄包装（等价于 wails 生成的 bindings），好处是生成产物出现之前前端即可独立类型检查。
 // 不要在本文件之外直接访问 window.go / window.runtime 的绑定方法。
 
@@ -51,7 +53,15 @@ function bindingFor(method: string) {
 }
 
 async function call<T>(method: string, ...args: unknown[]): Promise<T> {
-  const raw = await bindingFor(method)(...args)
+  if (window.go?.api?.AppAPI) {
+    const raw = await bindingFor(method)(...args)
+    return raw as T
+  }
+  const fn = (webApi as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[method]
+  if (typeof fn !== 'function') {
+    throw new Error(`浏览器后端未实现：${method}`)
+  }
+  const raw = await fn(...args)
   return raw as T
 }
 
