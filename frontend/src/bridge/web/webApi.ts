@@ -57,7 +57,8 @@ const DUPLICATE_TITLE_SUFFIX = '（副本）'
 const SETTING_KEY_APP = 'app'
 const SETTING_KEY_SEARCH = 'search'
 const SETTING_KEY_PROXY = 'network_proxy'
-const SETTING_KEY_BUILTIN_ASSISTANTS = 'builtin_assistants_v1'
+// v2：v1 期间被删/缺失的内置助手再补种一次（同名跳过，补完写标记，之后仍可删）。
+const SETTING_KEY_BUILTIN_ASSISTANTS = 'builtin_assistants_v2'
 const SETTING_KEY_BUILTIN_EMOJI_V2 = 'builtin_assistants_emoji_v2'
 
 const PREVIEW_PARTS_BYTES = 64 << 10

@@ -356,7 +356,8 @@ func (a *AppAPI) createDefaultAssistant(sortOrder int) (repository.Assistant, er
 }
 
 // settingsKeyBuiltinAssistants 是「预置助手已播种」的一次性标记键：只播种一次，之后用户可以随意删改。
-const settingsKeyBuiltinAssistants = "builtin_assistants_v1"
+// v2：v1 期间被删/缺失的内置助手再补种一次（同名跳过，补完写标记，之后仍可删）。
+const settingsKeyBuiltinAssistants = "builtin_assistants_v2"
 
 // builtinAssistantSeed 预置助手定义；播种时按声明顺序写入 sort_order 0..3。
 type builtinAssistantSeed struct {
