@@ -52,6 +52,8 @@ pnpm --dir frontend build:web    # → frontend/dist-web/index.html（单文件 
 
 桌面端构建不受影响；运行时按 `window.go` 是否存在自动在 Wails 绑定与浏览器实现间切换。密钥明文存 localStorage、模型请求直连 provider（受 CORS 约束），详见 [docs/SINGLE_HTML_WEB.md](docs/SINGLE_HTML_WEB.md)。
 
+仓库已带 `vercel.json`：推到 GitHub 后在 Vercel 导入该仓库，即可实现 push 到 `main` 自动构建并部署该单 HTML 站点（其他分支/PR 自动出预览），步骤见 [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)。
+
 ## 内网代理
 
 在「模型服务 → 网络代理」填写 `http://代理主机:端口` 并保存；需要认证时可填写 `http://用户名:密码@代理主机:端口`（特殊字符需 URL 编码）。留空保存即可禁用，默认不配置代理。当前支持 HTTP 正向代理，通过 CONNECT 转发 HTTPS，不支持 SOCKS 或 `https://` 代理地址。
