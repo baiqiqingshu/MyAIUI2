@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { devApiProxy } from './vite.devApiProxy.ts'
 
 // 安全基线 §14.5：index.html 里的 %CSP% 占位符在构建时被替换。
 // 生产 CSP 禁止远程脚本、object、frame；开发态额外放开 Vite HMR。
@@ -42,7 +43,7 @@ function csp(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), csp()],
+  plugins: [react(), csp(), devApiProxy()],
   base: './',
   build: {
     outDir: 'dist',

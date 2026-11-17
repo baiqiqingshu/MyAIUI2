@@ -1,5 +1,6 @@
 import { generateImage } from 'ai'
 import { createWailsFetch } from '../../bridge/wailsFetch'
+import { createWebFetch } from '../../bridge/web'
 import type { MessagePart } from '../../domain/message'
 import type { ModelDTO, ProviderDTO } from '../../domain/dto'
 import { createProvider } from './providerFactory'
@@ -111,7 +112,11 @@ async function generateViaHttp(
   signal: AbortSignal,
 ): Promise<MessagePart> {
   const baseURL = provider.BaseURL.replace(/\/+$/, '')
-  const response = await createWailsFetch(provider.ID)(`${baseURL}/images/generations`, {
+  // 与 providerFactory 同一套运行时判断：桌面端走 Go 传输桥，浏览器走 /api/proxy。
+  const transport = window.go?.api?.AppAPI
+    ? createWailsFetch(provider.ID)
+    : createWebFetch(provider)
+  const response = await transport(`${baseURL}/images/generations`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({

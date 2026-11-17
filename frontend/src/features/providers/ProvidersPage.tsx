@@ -11,8 +11,12 @@ import { describeError } from './errors'
 import { ModelList } from './ModelList'
 import { ProviderForm } from './ProviderForm'
 import { ProxyCard } from './ProxyCard'
+import { WebProxyCard } from './WebProxyCard'
 
 // 模型服务主页（主区 tab）：内置中转卡片 + 服务商卡片列表（测试/启停/编辑/删除）+ 展开的模型列表。
+// 浏览器模式（无 window.go）下内置中转/网络代理本就不生效，换成「部署端中转」卡片。
+const isWebRuntime = !window.go?.api?.AppAPI
+
 export function ProvidersPage() {
   const providers = useUiStore((s) => s.providers)
   const models = useUiStore((s) => s.models)
@@ -103,8 +107,14 @@ export function ProvidersPage() {
 
       <div className="providers-page__scroll scroll-area">
         <div className="providers-page__inner">
-          <RelayCard />
-          <ProxyCard />
+          {isWebRuntime ? (
+            <WebProxyCard />
+          ) : (
+            <>
+              <RelayCard />
+              <ProxyCard />
+            </>
+          )}
 
           {formOpen ? (
             <ProviderForm

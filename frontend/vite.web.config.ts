@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { devApiProxy } from './vite.devApiProxy.ts'
 
 // docs/SINGLE_HTML_WEB.md §5：单 HTML Web 版构建契约。
 // script-src 'unsafe-inline' 是单文件内联的前提；connect-src 放开到任意 http(s)
@@ -89,7 +90,7 @@ function singleFile(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), cspWeb(), singleFile()],
+  plugins: [react(), cspWeb(), singleFile(), devApiProxy()],
   base: './',
   build: {
     outDir: 'dist-web',

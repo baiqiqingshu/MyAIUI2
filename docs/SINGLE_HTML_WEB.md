@@ -14,7 +14,7 @@ UI / features / lib/ai
    │     否则                        → bridge/web/webApi.ts（localStorage 实现）
    └── lib/ai/providerFactory.ts —— fetch 二选一：
          Wails → createWailsFetch（Go 受限 Transport，现状）
-         Web   → bridge/web/webFetch.ts（浏览器直连 provider，注入 Authorization）
+         Web   → bridge/web/webFetch.ts（经同源 /api/proxy 中转，注入 Authorization）
 ```
 
 - 运行时判定只看 `window.go?.api?.AppAPI` 是否存在，不做 build-time 差异代码；
@@ -27,7 +27,7 @@ UI / features / lib/ai
 | --- | --- |
 | `db.ts` | localStorage 读写。两个 key：`myaiui2.web.v1.db`（全量业务数据 JSON，写穿透）与 `myaiui2.web.v1.secrets`（provider/search 明文密钥）。集合：settings/assistants/providers/models/topics/folders/messages。提供 `load()`、`mutate(fn)`、`getProviderKey(id)`、`getSearchKey()` |
 | `webApi.ts` | 实现 `AppApi` 全部方法，语义逐一对齐 `internal/api/*.go`（见 §4 契约） |
-| `webFetch.ts` | `createWebFetch(provider): typeof fetch`：直连 `provider.BaseURL + path`，注入 `Authorization: Bearer <localStorage 密钥>`；空密钥不注入 |
+| `webFetch.ts` | `createWebFetch(provider): typeof fetch` + `proxyURL(url)` + 「部署端中转」开关（`getWebProxyEnabled`/`setWebProxyEnabled`，存 `settings['web_egress_proxy']`，默认开）：开关开且探测到代理时，请求经同源 `/api/proxy?url=<目标>` 中转（部署时为 `api/proxy.ts` Edge Function，dev 为 `vite.devApiProxy.ts` 中间件），注入 `Authorization: Bearer <localStorage 密钥>`；空密钥不注入 |
 | `markdown.ts` | 话题导出 Markdown 渲染，对齐 `internal/api/topic_export.go` |
 | `index.ts` | 导出 `webApi`、`createWebFetch` |
 
@@ -54,7 +54,7 @@ UI / features / lib/ai
 - **话题/目录**：Zone '' / 'fav' 两区；SortOrder 容器内下标；MoveTopic/MoveTopicFolder 重排，对齐 `topic_org.go`；DeleteTopic 级联删消息；DuplicateTopic 复制活动路径为新话题。
 - **Provider/Model**：SaveProvider 走 `secrets` 存密钥、`HasAPIKey` 镜像；TestProvider = GET `{BaseURL}{ModelPath||/v1/models}` 判连通；SyncProviderModels = 拉模型列表 upsert + 标 MissingRemote；CopyProviderAPIKey → `navigator.clipboard`。
 - **导出**：ExportTopicMarkdown 渲染活动分支；SaveTopicMarkdown 触发浏览器下载 `.md`。
-- **Search**：直连 searxng `{BaseURL}/search?q=&format=json&language=zh-CN`，对齐 `transport/search.go`；CORS 失败按错误返回。
+- **Search**：经 `/api/proxy` 访问 searxng `{BaseURL}/search?q=&format=json&language=zh-CN`，对齐 `transport/search.go`；失败按错误返回。
 - **LoadRemoteImage**：fetch → base64 data（限 http/https，对齐 `remote_image.go` 校验）。
 - **Relay/Proxy**：GetRelayStatus 恒 `{Enabled:false,Running:false}`、SetRelayEnabled 返回同状态；ProxySettings 仅存不生效（浏览器无代理控制）。
 - **OpenExternalURL** → `window.open(url, '_blank', 'noopener')`。
@@ -80,6 +80,6 @@ UI / features / lib/ai
 ## 7. 已知取舍（原型）
 
 - 密钥明文存 localStorage：单文件无后端可托管密钥，属预期；文档注明风险。
-- CORS：浏览器直连要求 provider 端允许跨域；不支持 CORS 的端点会报网络错误（桌面端无此限制）。
+- CORS：外联请求默认走同源 `/api/proxy` 中转（部署时为 `frontend/api/proxy.ts` Edge Function，`vite dev` 由 `vite.devApiProxy.ts` 中间件复刻），不受 provider 跨域策略限制。「模型服务 → 部署端中转」卡片提供全局开关（默认开），关掉则全部浏览器直连——允许跨域的 provider 可省一跳，本机/内网 provider 也只能直连（代理端按主机名拦内网地址）；探测不到代理端点时无论开关如何都直连（双击单文件、无函数的静态托管）。代理还可用环境变量 `PROXY_ALLOWED_HOSTS` 配置域名白名单。
 - localStorage ~5MB 上限，图片以 base64 存消息里会较快占满；原型接受，后续可换 IndexedDB。
 - 中转（relay.py）与代理设置在 web 版不生效。

@@ -1,2 +1,7 @@
 export { webApi } from './webApi'
-export { createWebFetch } from './webFetch'
+export {
+  createWebFetch,
+  getWebProxyEnabled,
+  probeWebProxy,
+  setWebProxyEnabled,
+} from './webFetch'

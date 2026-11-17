@@ -35,6 +35,7 @@ import type {
   WebDb,
 } from './db'
 import { exportMarkdown, sanitizeExportName } from './markdown'
+import { webOutboundFetch } from './webFetch'
 
 // 浏览器版 AppApi：逐方法对齐 internal/api/*.go 的语义（消息树、分支、话题目录、
 // 模型同步、导出等），持久层换成 db.ts 的 localStorage blob。错误文案沿用 Go 侧中文。
@@ -314,7 +315,7 @@ function autoTitle(text: string): string {
   return chars.length > 30 ? chars.slice(0, 30).join('') : folded
 }
 
-/** 带超时的 fetch：超时按 AbortError 抛出，调用方转成「请求超时」。 */
+/** 带超时的 fetch：超时按 AbortError 抛出，调用方转成「请求超时」。经 webOutboundFetch 中转（有代理走代理）。 */
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -323,7 +324,7 @@ async function fetchWithTimeout(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await webOutboundFetch(url, { ...init, signal: controller.signal })
   } finally {
     clearTimeout(timer)
   }
