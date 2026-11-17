@@ -6,15 +6,16 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `vercel.json` | 声明 `installCommand`/`buildCommand`/`outputDirectory`：`pnpm --dir frontend install` → `pnpm --dir frontend build:web` → 输出 `frontend/dist-web`；`framework: null` 关闭框架自动探测，产物按纯静态站托管。`ignoreCommand` 使与 `frontend/` 无关的提交（纯 Go 改动等）不触发部署 |
-| `package.json`（根） | 仅声明 `engines.node >=22.12.0`（Vite 8 要求），供 Vercel 选择 Node 版本；不是真实 npm 工程，本地开发仍在 `frontend/` 内操作 |
+| `frontend/vercel.json` | 以 `frontend/` 为项目根时的 Vercel 配置：`pnpm install` → `pnpm build:web` → 输出 `dist-web`；`framework: null` 按纯静态站托管。`ignoreCommand` 使与 `frontend/` 无关的提交（纯 Go 改动等）不触发部署 |
+| `frontend/package.json` 的 `engines` | 声明 `node >=22.12.0`（Vite 8 要求），供 Vercel 选择 Node 版本 |
 
 ## 一次性设置
 
-1. 把本仓库推到 GitHub（私有仓库亦可，Vercel 免费版可部署私有仓库）。
+1. 把本仓库推到 GitHub。
 2. Vercel 控制台 → **Add New… → Project** → 选中该仓库 **Import**。
-3. 保持默认（Root Directory 留仓库根，不要改）：Vercel 读到 `vercel.json` 后会自动填入 Build/Install/Output 配置，直接 **Deploy**。
-4. 完成。此后：
+3. 导入页会提示 "Multiple applications detected"——这是因为 Vercel 自动探测到仓库根的 `go.mod`，把 Wails 桌面壳列成了 `app · Go` 服务。**桌面 Go 壳不是 Web 服务，忽略它**。
+4. 在 **`frontend`（Vite）那一行点 "Import single project"**，Root Directory 自动设为 `frontend`。Vercel 读到 `frontend/vercel.json` 后自动使用 `pnpm build:web` / `dist-web`，无需手改，直接 **Deploy**。
+5. 完成。此后：
    - `git push` 到 `main` → 生产部署 `https://<project>.vercel.app`
    - 其他分支 / PR → 自动预览部署，URL 出现在 PR 与 Vercel 面板上
 
