@@ -47,7 +47,7 @@ const APP_VERSION = '0.1.0-prototype-web'
 const DEFAULT_PROVIDER_KIND = 'openai-compatible'
 const DEFAULT_MODEL_PATH = '/models'
 const DEFAULT_ASSISTANT_NAME = '默认助手'
-const DEFAULT_ASSISTANT_EMOJI = '🤖'
+const DEFAULT_ASSISTANT_EMOJI = 'icon:sparkles:indigo'
 const DEFAULT_TOPIC_TITLE = '新话题'
 const DEFAULT_SEARCH_SERVICE = 'searxng'
 const DEFAULT_MAX_RESULTS = 5
@@ -58,6 +58,7 @@ const SETTING_KEY_APP = 'app'
 const SETTING_KEY_SEARCH = 'search'
 const SETTING_KEY_PROXY = 'network_proxy'
 const SETTING_KEY_BUILTIN_ASSISTANTS = 'builtin_assistants_v1'
+const SETTING_KEY_BUILTIN_EMOJI_V2 = 'builtin_assistants_emoji_v2'
 
 const PREVIEW_PARTS_BYTES = 64 << 10
 const PREVIEW_RUNE_LIMIT = 60
@@ -96,7 +97,7 @@ const BUILTIN_ASSISTANT_SEEDS: Array<{ Name: string; Emoji: string; SystemPrompt
   { Name: DEFAULT_ASSISTANT_NAME, Emoji: DEFAULT_ASSISTANT_EMOJI, SystemPrompt: '' },
   {
     Name: '编程助手',
-    Emoji: '💻',
+    Emoji: 'icon:code:sky',
     SystemPrompt:
       '你是一个资深全栈编程助手，擅长前端（React/TypeScript）、后端（Go/Python/Node.js）与数据库设计。' +
       '回答时先简述思路与关键决策，再给出可直接使用的代码；代码遵循调用方项目的既有风格与约定；' +
@@ -104,7 +105,7 @@ const BUILTIN_ASSISTANT_SEEDS: Array<{ Name: string; Emoji: string; SystemPrompt
   },
   {
     Name: '变量名命名大师',
-    Emoji: '🏷️',
+    Emoji: 'icon:type:amber',
     SystemPrompt:
       '你是变量命名专家。用户会描述一个变量、函数、类或常量的用途、类型与上下文。' +
       '你给出 3~5 个命名建议，每个注明命名风格（camelCase/snake_case/PascalCase/UPPER_SNAKE_CASE）、含义与适用场景，' +
@@ -112,7 +113,7 @@ const BUILTIN_ASSISTANT_SEEDS: Array<{ Name: string; Emoji: string; SystemPrompt
   },
   {
     Name: '中英翻译',
-    Emoji: '🔁',
+    Emoji: 'icon:languages:teal',
     SystemPrompt:
       '你是专业的中英互译助手。自动判断输入语言：中文译成英文，英文译成中文。' +
       '保持原文语气、格式与专业术语的准确性；只输出译文，不输出解释或注释；' +
@@ -770,6 +771,28 @@ function createDefaultAssistant(db: WebDb, sortOrder: number): StoredAssistant {
   return assistant
 }
 
+/** 预置助手「旧图标 → 新图标规格」（icon:<lucide>:<配色>，对齐 builtinEmojiUpgrade）。 */
+const BUILTIN_EMOJI_UPGRADE: Record<string, [string, string]> = {
+  [DEFAULT_ASSISTANT_NAME]: ['🤖', 'icon:sparkles:indigo'],
+  编程助手: ['💻', 'icon:code:sky'],
+  变量名命名大师: ['🏷️', 'icon:type:amber'],
+  中英翻译: ['🔁', 'icon:languages:teal'],
+}
+
+/** 一次性把仍是旧图标的预置助手换新；名字与旧图标都命中才改，用户改过的图标不动。 */
+function migrateBuiltinAssistantEmojis(db: WebDb): void {
+  if (db.settings[SETTING_KEY_BUILTIN_EMOJI_V2]) return
+  const now = nowMs()
+  for (const a of db.assistants) {
+    const up = BUILTIN_EMOJI_UPGRADE[a.Name]
+    if (up && a.Emoji === up[0]) {
+      a.Emoji = up[1]
+      a.UpdatedAt = now
+    }
+  }
+  db.settings[SETTING_KEY_BUILTIN_EMOJI_V2] = '"1"'
+}
+
 /** 预置助手只播种一次；同名已存在则跳过（对齐 ensureBuiltinAssistants）。 */
 function ensureBuiltinAssistants(db: WebDb): void {
   if (db.settings[SETTING_KEY_BUILTIN_ASSISTANTS]) return
@@ -1122,6 +1145,7 @@ export const webApi: AppApi = {
       }
       if (db.assistants.length === 0) createDefaultAssistant(db, 0)
       ensureBuiltinAssistants(db)
+      migrateBuiltinAssistantEmojis(db)
       const assistants = assistantsOf(db).map((a) => toAssistantDTO(a))
       const settings = loadAppSettings(db)
       const activeAssistantID = pickAssistantID(assistants, settings.ActiveAssistantID)
@@ -1433,7 +1457,8 @@ export const webApi: AppApi = {
       const name = input.Name.trim() || '新助手'
       validateTextLen('助手名称', name, MAX_NAME_LEN)
       const emoji = input.Emoji.trim() || DEFAULT_ASSISTANT_EMOJI
-      validateTextLen('助手 Emoji', emoji, 16)
+      // 头像字段除 emoji 外还接受 'icon:<名>:<色>' 规格，上限放宽到 64。
+      validateTextLen('助手 Emoji', emoji, 64)
       validateTextLen('系统提示词', input.SystemPrompt, MAX_PROMPT_LEN)
       if (input.TemperatureSet && (input.Temperature < 0 || input.Temperature > 2)) {
         throw new Error('温度必须在 0 到 2 之间')

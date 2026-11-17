@@ -2,9 +2,10 @@ import { Bot, MessageSquare, Pencil, Plus, Server } from 'lucide-react'
 import clsx from 'clsx'
 import { useUiStore } from '../../app/uiStore'
 import { IconButton } from '../../components/ui'
+import { AssistantAvatar } from '../../components/icons/AssistantAvatar'
 import './assistants.css'
 
-/** 最左侧 64px 助手栏：Emoji 头像列表 + 底部三个入口（添加助手 / 聊天 / 模型服务）。 */
+/** 最左侧 64px 助手栏：图标头像列表 + 底部三个入口（添加助手 / 聊天 / 模型服务）。 */
 export function AssistantRail() {
   const assistants = useUiStore((s) => s.assistants)
   const activeAssistantId = useUiStore((s) => s.activeAssistantId)
@@ -38,7 +39,7 @@ export function AssistantRail() {
                   if (mainView === 'models') setMainView('chat')
                 }}
               >
-                <span className="as-rail__emoji">{assistant.Emoji || '🤖'}</span>
+                <AssistantAvatar value={assistant.Emoji} size={30} />
               </button>
               <button
                 type="button"

@@ -91,9 +91,6 @@
   background: var(--accent-soft);
 }
 
-.as-rail__emoji {
-  pointer-events: none;
-}
 
 /* 悬停头像时浮出的「编辑助手」小圆钮：白底 + hairline + 微阴影 */
 .as-rail__edit {
@@ -145,26 +142,143 @@
 
 /* 编辑抽屉 */
 
-.as-edit__row {
+/* Emoji 选择器：左侧 48px 预览块 + 右侧自适应 32px 选项格 */
+.as-emoji {
   display: flex;
   gap: var(--space-3);
   align-items: flex-start;
 }
 
-.as-edit__emoji {
-  width: 76px;
+/* 当前头像预览：头像色块自成视觉，外层只留浅底定位框 */
+.as-emoji__preview {
   flex: none;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
 }
 
-.as-edit__emoji .ui-input {
-  text-align: center;
-  font-size: 20px;
-  line-height: 1.2;
-}
-
-.as-edit__grow {
+/* 头像选择器右列：图标网格 + 配色行 + Emoji 网格 */
+.as-avatar {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.as-avatar__label {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+/* 图标选项：选中时直接渲成目标彩块白图标（背景色由行内 style 给） */
+.as-avatar__opt {
+  color: var(--text-secondary);
+}
+
+.as-emoji__opt.as-avatar__opt.is-selected {
+  border-color: transparent;
+}
+
+/* 配色色板：22px 圆点，选中加双层描边环（不位移） */
+.as-avatar__colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.as-avatar__swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-full);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--text-tertiary) 22%, transparent);
+  transition:
+    transform var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.as-avatar__swatch:hover {
+  transform: scale(1.12);
+}
+
+.as-avatar__swatch.is-selected {
+  border-color: var(--bg-elevated);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.as-emoji__grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 32px);
+  gap: 4px;
+}
+
+/* 选项格：无渐变小方钮；选中态 accent-soft 底 + accent 半透边（与 model-row 同一语言），
+   常态边框透明占位，选中不位移 */
+.as-emoji__opt {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 17px;
+  line-height: 1;
+  transition:
+    background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.as-emoji__opt:hover {
+  background: var(--bg-hover);
+}
+
+.as-emoji__opt.is-selected {
+  background: var(--accent-soft);
+  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
+}
+
+/* 网格末位的自定义输入格：虚线框暗示「自定义」，与选项格同尺寸 */
+.as-emoji__custom {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1;
+  outline: none;
+  transition:
+    border-color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.as-emoji__custom:hover {
+  border-color: var(--border-strong);
+}
+
+.as-emoji__custom:focus {
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.as-emoji__custom::placeholder {
+  color: var(--text-tertiary);
 }
 
 .as-edit__temp {

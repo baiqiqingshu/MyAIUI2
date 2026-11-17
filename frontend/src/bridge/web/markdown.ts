@@ -50,7 +50,9 @@ export function exportMarkdown(
 /** 助手信息行；助手缺失时退回默认写法（对齐 exportAssistantLine）。 */
 function exportAssistantLine(assistant: StoredAssistant | null): string {
   const name = assistant?.Name.trim() ?? ''
-  const emoji = assistant?.Emoji.trim() ?? ''
+  let emoji = assistant?.Emoji.trim() ?? ''
+  // icon:<名>:<色> 是头像规格，不是可打印字符，导出时略去。
+  if (emoji.startsWith('icon:')) emoji = ''
   if (!assistant || !assistant.ID || !name) return `- 助手：${DEFAULT_ASSISTANT_NAME}`
   return emoji ? `- 助手：${emoji} ${name}` : `- 助手：${name}`
 }

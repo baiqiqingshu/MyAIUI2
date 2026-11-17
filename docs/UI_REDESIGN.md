@@ -107,3 +107,15 @@
 - **其他**：markdown 引用块改中性左边条、表格补 hairline；温度 range 双引擎自绘；Toast/Modal/Drawer 玻璃 + radius-xl；按钮零渐变（全 app 渐变仅：品牌块、rail/话题选中指示条）。
 
 遗留：`docs/IMPLEMENTATION_PLAN.md` 为历史规划文档未更新；`MANUAL_SMOKE_TEST.md` 中「助手默认模型下拉」等原生 select 描述以新实现为准。
+
+## 助手图标头像（2026-11-18 追加）
+
+Emoji 头像观感不佳，升级为「彩色圆角方块 + 白色 lucide 图标」的应用图标风；Emoji 仍保留为用户可选项。
+
+- **规格**：`assistants.emoji` 字段存 `icon:<图标名>:<配色>`（如 `icon:sparkles:indigo`）；纯 emoji 字符串继续兼容；空值兜底 `icon:bot:indigo`。规格上限 64 字符（Go/Web 校验同步放宽）。
+- **组件**：`components/icons/AssistantAvatar.tsx`——`parseAssistantAvatar` 解析、`assistantAvatarSpec` 生成、`AssistantAvatar` 渲染（彩块圆角约 30%、图标占 55%、emoji 落中性浅底方块）。图标表 20 枚、配色 8 色，key 落库注意兼容。
+- **渲染点**：`AssistantList` 助手栏（30px）、`ChatWorkspace` 顶栏（26px）、`AssistantEditor` 预览（44px）。
+- **选择器**：编辑抽屉「头像」区 = 图标网格 + 8 色色板 + Emoji 网格（保留自定义输入，icon 规格不进自定义框）；选中图标按钮直接渲染为目标彩块白图标。
+- **内置助手**：默认 `icon:sparkles:indigo`、编程 `icon:code:sky`、命名大师 `icon:type:amber`、翻译 `icon:languages:teal`（Go `builtinAssistantSeeds` 与 webApi `BUILTIN_ASSISTANT_SEEDS` 同步）。
+- **迁移**：`builtin_assistants_emoji_v2` 一次性标记——名字匹配且图标仍是旧 emoji 才替换，用户自定义不动；Go `migrateBuiltinAssistantEmojis` 与 webApi 同名函数对齐。
+- **导出**：`icon:` 前缀规格不是可打印字符，`topic_export.go` 与 web `markdown.ts` 的助手行均剥离。

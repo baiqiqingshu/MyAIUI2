@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { GitBranch, ListChecks, Maximize2, Minimize2, PlugZap } from 'lucide-react'
 import clsx from 'clsx'
 import { Button, EmptyState, IconButton } from '../../components/ui'
+import { AssistantAvatar } from '../../components/icons/AssistantAvatar'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { useLayoutStore } from '../../app/layoutStore'
 import { copyToClipboard, EMPTY_SESSION, useChatStore } from './chatStore'
@@ -111,9 +112,7 @@ export function ChatWorkspace(): ReactElement {
   return (
     <div className={clsx('chat', chatFullWidth && 'chat--full')}>
       <header className="chat-header">
-        <span className="chat-header__emoji" aria-hidden>
-          {assistant?.Emoji || '🤖'}
-        </span>
+        <AssistantAvatar value={assistant?.Emoji ?? ''} size={26} />
         <div className="chat-header__meta">
           <div className="chat-header__name">{assistant?.Name || '未选择助手'}</div>
           <div className="chat-header__topic" title={topic?.Title}>

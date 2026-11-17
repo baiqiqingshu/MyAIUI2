@@ -37,11 +37,6 @@
   }
 }
 
-.chat-header__emoji {
-  font-size: 20px;
-  line-height: 1;
-}
-
 .chat-header__meta {
   min-width: 0;
   flex: 1 1 auto;

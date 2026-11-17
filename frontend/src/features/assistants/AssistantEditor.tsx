@@ -1,11 +1,47 @@
 import { useMemo, useState } from 'react'
+import clsx from 'clsx'
 import { appApi } from '../../bridge/appApi'
 import type { ModelDTO, SaveAssistantDTO } from '../../domain/dto'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
 import { Button, ConfirmDialog, Drawer, Field, Input, Select, Textarea, Toggle } from '../../components/ui'
+import {
+  AssistantAvatar,
+  ASSISTANT_AVATAR_COLORS,
+  ASSISTANT_AVATAR_ICONS,
+  assistantAvatarSpec,
+  AVATAR_FALLBACK_SPEC,
+  parseAssistantAvatar,
+} from '../../components/icons/AssistantAvatar'
 import './assistants.css'
 
-const EMOJI_FALLBACK = '🤖'
+const EMOJI_FALLBACK = AVATAR_FALLBACK_SPEC
+// 助手头像精选集：挑渲染美观、不俗气的款
+const EMOJI_CHOICES = [
+  '🔮',
+  '✨',
+  '💡',
+  '🎯',
+  '🚀',
+  '⚡',
+  '🦉',
+  '🐱',
+  '🦊',
+  '🐼',
+  '🐨',
+  '🦄',
+  '🌙',
+  '🌸',
+  '🍀',
+  '🔥',
+  '💎',
+  '🎨',
+  '📚',
+  '🧠',
+  '💫',
+  '🌊',
+  '🍵',
+  '🐧',
+]
 const TEMPERATURE_DEFAULT = 0.7
 
 interface ModelGroup {
@@ -64,6 +100,13 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
   }, [models, providers])
 
   const usableCount = modelGroups.reduce((total, group) => total + group.models.length, 0)
+
+  // 头像状态：emoji 字段可能是 icon:<名>:<色> 规格、纯 emoji 或空（空走内置兜底）。
+  const avatarParsed = parseAssistantAvatar(emoji)
+  const iconKey = avatarParsed.kind === 'icon' ? avatarParsed.icon.key : ''
+  const colorKey = avatarParsed.kind === 'icon' ? avatarParsed.color.key : 'indigo'
+  const colorBg =
+    ASSISTANT_AVATAR_COLORS.find((c) => c.key === colorKey)?.bg ?? ASSISTANT_AVATAR_COLORS[0].bg
 
   // 自绘 Select 的分组数据：「未选择」作为空 label 组排最前（空组头不渲染标题），
   // 选中它后 modelId 回到 ''，保存仍走原来的留空逻辑。
@@ -152,18 +195,90 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
           </>
         }
       >
-        <div className="as-edit__row">
-          <div className="as-edit__emoji">
-            <Field label="Emoji">
-              <Input value={emoji} onChange={setEmoji} placeholder="🤖" />
-            </Field>
+        <Field label="头像" hint="图标 + 配色；也可以直接用 Emoji">
+          <div className="as-emoji">
+            <div className="as-emoji__preview">
+              <AssistantAvatar value={emoji} size={44} />
+            </div>
+            <div className="as-avatar">
+              <div className="as-avatar__label">图标</div>
+              <div className="as-emoji__grid" role="group" aria-label="选择图标">
+                {ASSISTANT_AVATAR_ICONS.map(({ key, label, Icon }) => {
+                  const selected = iconKey === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={clsx('as-emoji__opt', 'as-avatar__opt', selected && 'is-selected')}
+                      style={selected ? { background: colorBg, color: '#fff' } : undefined}
+                      title={label}
+                      aria-label={`图标：${label}`}
+                      aria-pressed={selected}
+                      onClick={() => setEmoji(assistantAvatarSpec(key, colorKey))}
+                    >
+                      <Icon size={16} strokeWidth={2.2} />
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="as-avatar__label">配色</div>
+              <div className="as-avatar__colors" role="group" aria-label="选择配色">
+                {ASSISTANT_AVATAR_COLORS.map((color) => {
+                  const selected = avatarParsed.kind === 'icon' && avatarParsed.color.key === color.key
+                  return (
+                    <button
+                      key={color.key}
+                      type="button"
+                      className={clsx('as-avatar__swatch', selected && 'is-selected')}
+                      style={{ background: color.bg }}
+                      title={color.label}
+                      aria-label={`配色：${color.label}`}
+                      aria-pressed={selected}
+                      onClick={() => setEmoji(assistantAvatarSpec(iconKey || 'sparkles', color.key))}
+                    />
+                  )
+                })}
+              </div>
+              <div className="as-avatar__label">Emoji</div>
+              <div className="as-emoji__grid" role="group" aria-label="选择 Emoji">
+                {EMOJI_CHOICES.map((choice) => {
+                  const selected = avatarParsed.kind === 'emoji' && emoji === choice
+                  return (
+                    <button
+                      key={choice}
+                      type="button"
+                      className={clsx('as-emoji__opt', selected && 'is-selected')}
+                      title={choice}
+                      aria-label={`选择 ${choice}`}
+                      aria-pressed={selected}
+                      onClick={() => setEmoji(choice)}
+                    >
+                      {choice}
+                    </button>
+                  )
+                })}
+                <input
+                  className="as-emoji__custom"
+                  value={
+                    avatarParsed.kind === 'emoji' && !EMOJI_CHOICES.includes(emoji) ? emoji : ''
+                  }
+                  placeholder="…"
+                  title="自定义 Emoji"
+                  aria-label="自定义 Emoji"
+                  onChange={(event) => {
+                    // 自定义输入只取末位字符（码点级），防止一次塞入多个字符
+                    const last = [...event.target.value].pop()
+                    if (last && last.trim()) setEmoji(last)
+                  }}
+                />
+              </div>
+            </div>
           </div>
-          <div className="as-edit__grow">
-            <Field label="名称">
-              <Input value={name} onChange={setName} placeholder="例如：代码助手" autoFocus />
-            </Field>
-          </div>
-        </div>
+        </Field>
+
+        <Field label="名称">
+          <Input value={name} onChange={setName} placeholder="例如：代码助手" autoFocus />
+        </Field>
 
         <Field label="系统提示词" hint="用于设定助手的角色与回答风格">
           <Textarea

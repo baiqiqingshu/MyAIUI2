@@ -98,6 +98,10 @@ func renderTopicMarkdown(topic repository.Topic, assistant repository.Assistant,
 func exportAssistantLine(assistant repository.Assistant) string {
 	name := strings.TrimSpace(assistant.Name)
 	emoji := strings.TrimSpace(assistant.Emoji)
+	// icon:<名>:<色> 是前端头像规格，不是可打印字符，导出时略去。
+	if strings.HasPrefix(emoji, "icon:") {
+		emoji = ""
+	}
 	if assistant.ID == "" || name == "" {
 		return "- 助手：" + defaultAssistantName
 	}

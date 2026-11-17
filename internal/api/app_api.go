@@ -37,7 +37,7 @@ const (
 	defaultProviderKind   = "openai-compatible"
 	defaultModelPath      = "/models"
 	defaultAssistantName  = "默认助手"
-	defaultAssistantEmoji = "🤖"
+	defaultAssistantEmoji = "icon:sparkles:indigo"
 	defaultTopicTitle     = "新话题"
 	defaultSearchService  = "searxng"
 	defaultMaxResults     = 5
@@ -329,6 +329,9 @@ func (a *AppAPI) ensureDefaultAssistant() ([]AssistantDTO, error) {
 	if list, err = a.ensureBuiltinAssistants(list); err != nil {
 		return nil, err
 	}
+	if list, err = a.migrateBuiltinAssistantEmojis(list); err != nil {
+		return nil, err
+	}
 	out := make([]AssistantDTO, 0, len(list))
 	for _, item := range list {
 		out = append(out, toAssistantDTO(item))
@@ -366,25 +369,67 @@ var builtinAssistantSeeds = []builtinAssistantSeed{
 	{Name: defaultAssistantName, Emoji: defaultAssistantEmoji},
 	{
 		Name:  "编程助手",
-		Emoji: "💻",
+		Emoji: "icon:code:sky",
 		SystemPrompt: "你是一个资深全栈编程助手，擅长前端（React/TypeScript）、后端（Go/Python/Node.js）与数据库设计。" +
 			"回答时先简述思路与关键决策，再给出可直接使用的代码；代码遵循调用方项目的既有风格与约定；" +
 			"必要时给出分步实施建议。",
 	},
 	{
 		Name:  "变量名命名大师",
-		Emoji: "🏷️",
+		Emoji: "icon:type:amber",
 		SystemPrompt: "你是变量命名专家。用户会描述一个变量、函数、类或常量的用途、类型与上下文。" +
 			"你给出 3~5 个命名建议，每个注明命名风格（camelCase/snake_case/PascalCase/UPPER_SNAKE_CASE）、含义与适用场景，" +
 			"最后推荐一个最佳答案并说明理由。命名原则：准确表达意图、避免歧义缩写、符合目标语言惯例。",
 	},
 	{
 		Name:  "中英翻译",
-		Emoji: "🔁",
+		Emoji: "icon:languages:teal",
 		SystemPrompt: "你是专业的中英互译助手。自动判断输入语言：中文译成英文，英文译成中文。" +
 			"保持原文语气、格式与专业术语的准确性；只输出译文，不输出解释或注释；" +
 			"遇到一词多义时在译文后用括号给出备选译法。",
 	},
+}
+
+// settingsKeyBuiltinEmojiV2 内置助手图标换代的一次性标记：
+// 只把「名字匹配且图标仍是旧值」的助手换新图标；用户改过图标的不再等于旧值，不会被覆盖。
+const settingsKeyBuiltinEmojiV2 = "builtin_assistants_emoji_v2"
+
+// builtinEmojiUpgrade 预置助手「旧图标 → 新图标规格」，按助手名限定。
+// 新值是 icon:<lucide>:<配色> 头像规格（前端 components/icons/AssistantAvatar 解析）。
+var builtinEmojiUpgrade = map[string][2]string{
+	defaultAssistantName: {"🤖", "icon:sparkles:indigo"},
+	"编程助手":               {"💻", "icon:code:sky"},
+	"变量名命名大师":            {"🏷️", "icon:type:amber"},
+	"中英翻译":               {"🔁", "icon:languages:teal"},
+}
+
+// migrateBuiltinAssistantEmojis 一次性迁移已播种库的旧图标：名字与旧图标都命中才更新。
+// 新装的库播种时已是新图标，这里自然空转，只写标记。
+func (a *AppAPI) migrateBuiltinAssistantEmojis(list []repository.Assistant) ([]repository.Assistant, error) {
+	_, done, err := a.settings.Get(settingsKeyBuiltinEmojiV2)
+	if err != nil {
+		return list, wrapRepoErr("读取图标迁移标记失败", "", err)
+	}
+	if done {
+		return list, nil
+	}
+	now := nowMs()
+	for i, item := range list {
+		up, ok := builtinEmojiUpgrade[item.Name]
+		if !ok || item.Emoji != up[0] {
+			continue
+		}
+		item.Emoji = up[1]
+		item.UpdatedAt = now
+		if err := a.assistants.Update(item); err != nil {
+			return list, wrapRepoErr("迁移预置助手图标失败", "", err)
+		}
+		list[i] = item
+	}
+	if err := a.settings.Set(settingsKeyBuiltinEmojiV2, `"1"`, now); err != nil {
+		return list, wrapRepoErr("写入图标迁移标记失败", "", err)
+	}
+	return list, nil
 }
 
 // ensureBuiltinAssistants 只在首次 Bootstrap 播种预置助手：同名助手已存在则跳过，
@@ -1003,7 +1048,8 @@ func (a *AppAPI) SaveAssistant(input SaveAssistantDTO) (AssistantDTO, error) {
 	if emoji == "" {
 		emoji = defaultAssistantEmoji
 	}
-	if err := validateTextLen("助手 Emoji", emoji, 16); err != nil {
+	// 头像字段除 emoji 外还接受 'icon:<名>:<色>' 规格，上限放宽到 64。
+	if err := validateTextLen("助手 Emoji", emoji, 64); err != nil {
 		return AssistantDTO{}, err
 	}
 	if err := validateTextLen("系统提示词", input.SystemPrompt, maxPromptLen); err != nil {
