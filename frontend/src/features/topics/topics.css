@@ -8,8 +8,8 @@
   /* 默认宽与 --panel-width 一致；实际宽度由 layoutStore 的内联 style 接管（右缘可拖） */
   width: var(--panel-width);
   min-width: 0;
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-subtle);
 }
 
 /* 右缘拖宽把手：8px 命中区压在 border-right 上，hover/active 露出 accent 指示条 */
@@ -34,7 +34,7 @@
   right: 0;
   width: 2px;
   background: transparent;
-  transition: background 0.12s ease;
+  transition: background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .topic-panel__resize:hover::after,
@@ -126,7 +126,8 @@
   min-width: 0;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .topic-zone__action {
@@ -146,9 +147,9 @@
   align-items: center;
   gap: var(--space-1);
   padding: 2px var(--space-1) 2px var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
-  transition: background 0.12s ease;
+  transition: background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .topic-folder:hover {
@@ -239,15 +240,15 @@
   align-items: center;
   gap: var(--space-1);
   padding: 2px var(--space-1) 2px var(--space-2);
-  border-radius: var(--radius-sm);
-  transition: background 0.12s ease;
+  border-radius: var(--radius-md);
+  transition: background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .topic-item:hover {
   background: var(--bg-hover);
 }
 
-/* 选中态：accent-soft 底 + accent 圆角左边条，目录树里一眼定位 */
+/* 选中态：accent-soft 底 + accent 渐变圆角左边条（导航点缀渐变位），目录树里一眼定位 */
 .topic-item.is-active {
   background: var(--accent-soft);
 }
@@ -255,12 +256,12 @@
 .topic-item.is-active::before {
   content: '';
   position: absolute;
-  left: 2px;
+  left: 3px;
   top: 7px;
   bottom: 7px;
   width: 3px;
   border-radius: var(--radius-full);
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
 }
 
 .topic-item.is-active .topic-item__main {
@@ -383,15 +384,15 @@
   background: var(--accent-soft);
 }
 
-/* 底部批量操作条：多选态下在 list 之后浮出 */
+/* 底部批量操作条：多选态下在 list 之后浮出，白底 + 顶部 hairline */
 .topic-batch {
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--border);
-  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
 }
 
 .topic-batch__count {
@@ -453,8 +454,9 @@
   max-height: 240px;
   overflow: auto;
   padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--bg-code);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 12px;

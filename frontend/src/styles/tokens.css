@@ -14,14 +14,15 @@
      交互   bg-hover=accent(=muted, 5%) / bg-active=ghost-active
      文本   text-primary=foreground / text-secondary=muted-foreground
             / text-tertiary=foreground-tertiary / text-inverse=primary-foreground
-     主题色 accent 取上游 info/link 的蓝（cs-blue-500/400），不用其品牌专属色。
+     主题色 accent 在上游 info/link 的蓝（cs-blue-500/400）基础上向蓝紫偏移（indigo 档），
+     不用其品牌专属色。
      反馈   danger=error / success / warning / 对应的 -soft=*-subtle 底色。 */
 
 :root {
   color-scheme: light;
 
-  --bg-app: oklch(1 0 0); /* cs-background */
-  --bg-sidebar: oklch(0.9672 0 0); /* cs-sidebar */
+  --bg-app: oklch(0.965 0.006 260); /* 冷灰画布（带一点蓝紫倾向），白色卡片悬浮其上 */
+  --bg-sidebar: oklch(0.99 0.004 260); /* 比画布亮一档的极浅灰，靠 hairline 分隔 */
   --bg-panel: oklch(1 0 0); /* cs-card */
   --bg-elevated: oklch(1 0 0); /* cs-popover */
   --bg-hover: oklch(0 0 0 / 0.05); /* cs-accent / cs-muted */
@@ -40,10 +41,10 @@
   --border-strong: oklch(0 0 0 / 0.2); /* cs-border-strong */
   --border-subtle: oklch(0 0 0 / 0.04); /* cs-border-subtle */
 
-  --accent: oklch(0.63 0.186 260); /* cs-blue-500 */
-  --accent-hover: oklch(0.54 0.215 263); /* cs-blue-600 */
-  --accent-soft: oklch(0.97 0.014 255); /* cs-info-subtle = cs-blue-50 */
-  --accent-text: oklch(0.54 0.215 263); /* --link = cs-blue-600 */
+  --accent: oklch(0.55 0.2 268); /* 现代蓝紫（indigo 档，≈#4F46E5~#2563EB） */
+  --accent-hover: oklch(0.48 0.21 270); /* hover 更深一档 */
+  --accent-soft: oklch(0.95 0.022 270); /* pastel 浅紫蓝：选中/气泡/徽标底 */
+  --accent-text: oklch(0.48 0.21 270); /* --link，与 accent-hover 同档 */
 
   --danger: oklch(0.64 0.208 25); /* cs-red-500 */
   --danger-soft: oklch(0.97 0.014 17); /* cs-red-50 */
@@ -59,8 +60,9 @@
   --syntax-variable: oklch(0.52 0.12 200);
 
   --radius-sm: 0.375rem; /* cs-radius-sm 6px */
-  --radius-md: 0.5rem; /* cs-radius-md 8px */
-  --radius-lg: 0.625rem; /* cs-radius-lg 10px */
+  --radius-md: 0.625rem; /* 10px */
+  --radius-lg: 0.875rem; /* 14px：卡片/代码块大圆角 */
+  --radius-xl: 1.125rem; /* 18px：弹层/输入区卡片 */
   --radius-full: 9999px; /* cs-radius-round */
 
   /* 间距对应 cs-size-5xs/4xs/3xs/2xs/xs */
@@ -70,9 +72,9 @@
   --space-4: 16px;
   --space-5: 24px;
 
-  /* 上游用 Tailwind 阴影刻度（shadow-sm / shadow-lg） */
-  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.1), 0 1px 2px -1px oklch(0 0 0 / 0.1);
-  --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.1), 0 4px 6px -4px oklch(0 0 0 / 0.1);
+  /* 柔和弥散多层阴影：低透明度 + 大模糊半径，白卡片靠它在灰画布上分层 */
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.05);
+  --shadow-md: 0 1px 2px oklch(0 0 0 / 0.04), 0 4px 16px -4px oklch(0 0 0 / 0.07);
 
   --font-sans: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
@@ -104,10 +106,10 @@
   --border-strong: oklch(1 0 0 / 0.2); /* cs-border-strong(dark) */
   --border-subtle: oklch(1 0 0 / 0.05); /* cs-border-subtle(dark) */
 
-  --accent: oklch(0.72 0.143 254); /* cs-blue-400 */
-  --accent-hover: oklch(0.8 0.098 252); /* cs-blue-300 */
-  --accent-soft: oklch(0.39 0.13 265); /* cs-info-subtle(dark) = cs-blue-900 */
-  --accent-text: oklch(0.72 0.143 254); /* --link(dark) = cs-blue-400 */
+  --accent: oklch(0.72 0.15 268); /* 深色下 accent 调亮保对比 */
+  --accent-hover: oklch(0.78 0.11 268);
+  --accent-soft: oklch(0.37 0.1 270); /* 深色下的 pastel 选中底 */
+  --accent-text: oklch(0.72 0.15 268); /* --link(dark) */
 
   --danger: oklch(0.71 0.166 22); /* cs-red-400 */
   --danger-soft: oklch(0.4 0.135 26); /* cs-red-900 */
@@ -121,9 +123,9 @@
   --syntax-function: oklch(0.78 0.13 250);
   --syntax-variable: oklch(0.8 0.1 200);
 
-  /* 深色下阴影需要更重才可见 */
-  --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.4);
-  --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.45), 0 4px 6px -4px oklch(0 0 0 / 0.4);
+  /* 深色下阴影需要更重才可见（沿用浅色结构、按比例加深） */
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-md: 0 1px 2px oklch(0 0 0 / 0.28), 0 4px 16px -4px oklch(0 0 0 / 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -150,10 +152,10 @@
     --border-strong: oklch(1 0 0 / 0.2);
     --border-subtle: oklch(1 0 0 / 0.05);
 
-    --accent: oklch(0.72 0.143 254);
-    --accent-hover: oklch(0.8 0.098 252);
-    --accent-soft: oklch(0.39 0.13 265);
-    --accent-text: oklch(0.72 0.143 254);
+    --accent: oklch(0.72 0.15 268);
+    --accent-hover: oklch(0.78 0.11 268);
+    --accent-soft: oklch(0.37 0.1 270);
+    --accent-text: oklch(0.72 0.15 268);
 
     --danger: oklch(0.71 0.166 22);
     --danger-soft: oklch(0.4 0.135 26);
@@ -167,27 +169,41 @@
     --syntax-function: oklch(0.78 0.13 250);
     --syntax-variable: oklch(0.8 0.1 200);
 
-    --shadow-sm: 0 1px 3px 0 oklch(0 0 0 / 0.4), 0 1px 2px -1px oklch(0 0 0 / 0.4);
-    --shadow-md: 0 10px 15px -3px oklch(0 0 0 / 0.45), 0 4px 6px -4px oklch(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
+    --shadow-md: 0 1px 2px oklch(0 0 0 / 0.28), 0 4px 16px -4px oklch(0 0 0 / 0.4);
   }
 }
 
 /* ---------------------------------------------------------------- 精修补充 token
    少量派生值：由既有色值经 color-mix/同族 OKLCH 派生，不引入第二套命名。
    shadow-lg   弹窗/抽屉/Toast 用更重一级的浮层阴影
+   shadow-lift 悬停上浮时的加深阴影（translateY 上浮配套）
    accent-ring 控件聚焦光晕（半透明 accent，深浅两套都清晰）
+   glass-*     磨砂玻璃浮层（半透明底 + backdrop-filter；不支持时回退实色 --bg-elevated）
+   ease/dur    全局动效曲线与时长
    success-soft / warning-soft  与 danger-soft 同构的状态底色（chip/横幅） */
 
 :root {
-  --shadow-lg: 0 20px 50px -12px oklch(0 0 0 / 0.22), 0 8px 20px -8px oklch(0 0 0 / 0.12);
+  --shadow-lg: 0 8px 24px -8px oklch(0 0 0 / 0.16), 0 2px 6px oklch(0 0 0 / 0.06);
+  --shadow-lift: 0 4px 8px -2px oklch(0 0 0 / 0.05), 0 14px 32px -8px oklch(0 0 0 / 0.12);
   --accent-ring: color-mix(in oklch, var(--accent) 28%, transparent);
+
+  /* 磨砂玻璃：color-mix 跟随主题变量，深浅主题共用同一份声明 */
+  --glass-bg: color-mix(in oklch, var(--bg-elevated) 72%, transparent);
+  --glass-bg-header: color-mix(in oklch, var(--bg-app) 70%, transparent);
+  --glass-blur: blur(16px) saturate(1.4);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 0.12s;
+  --dur-med: 0.18s;
 
   --success-soft: oklch(0.965 0.02 152); /* 与 cs-green-50 同档 */
   --warning-soft: oklch(0.965 0.03 88); /* 与 cs-amber-50 同档 */
 }
 
 :root[data-theme='dark'] {
-  --shadow-lg: 0 20px 50px -12px oklch(0 0 0 / 0.6), 0 8px 20px -8px oklch(0 0 0 / 0.5);
+  --shadow-lg: 0 8px 24px -8px oklch(0 0 0 / 0.55), 0 2px 6px oklch(0 0 0 / 0.35);
+  --shadow-lift: 0 4px 8px -2px oklch(0 0 0 / 0.35), 0 14px 32px -8px oklch(0 0 0 / 0.5);
   --accent-ring: color-mix(in oklch, var(--accent) 32%, transparent);
 
   --success-soft: oklch(0.39 0.1 153); /* 与 cs-green-900 同档 */
@@ -196,7 +212,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --shadow-lg: 0 20px 50px -12px oklch(0 0 0 / 0.6), 0 8px 20px -8px oklch(0 0 0 / 0.5);
+    --shadow-lg: 0 8px 24px -8px oklch(0 0 0 / 0.55), 0 2px 6px oklch(0 0 0 / 0.35);
+    --shadow-lift: 0 4px 8px -2px oklch(0 0 0 / 0.35), 0 14px 32px -8px oklch(0 0 0 / 0.5);
     --accent-ring: color-mix(in oklch, var(--accent) 32%, transparent);
 
     --success-soft: oklch(0.39 0.1 153);

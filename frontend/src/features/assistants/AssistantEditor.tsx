@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { appApi } from '../../bridge/appApi'
 import type { ModelDTO, SaveAssistantDTO } from '../../domain/dto'
 import { selectUsableModels, useUiStore } from '../../app/uiStore'
-import { Button, ConfirmDialog, Drawer, Field, Input, Textarea, Toggle } from '../../components/ui'
+import { Button, ConfirmDialog, Drawer, Field, Input, Select, Textarea, Toggle } from '../../components/ui'
 import './assistants.css'
 
 const EMOJI_FALLBACK = '🤖'
@@ -64,6 +64,22 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
   }, [models, providers])
 
   const usableCount = modelGroups.reduce((total, group) => total + group.models.length, 0)
+
+  // 自绘 Select 的分组数据：「未选择」作为空 label 组排最前（空组头不渲染标题），
+  // 选中它后 modelId 回到 ''，保存仍走原来的留空逻辑。
+  const selectGroups = useMemo(
+    () => [
+      { label: '', options: [{ value: '', label: '未选择' }] },
+      ...modelGroups.map((group) => ({
+        label: group.providerName,
+        options: group.models.map((model) => ({
+          value: model.ID,
+          label: model.DisplayName || model.RemoteID,
+        })),
+      })),
+    ],
+    [modelGroups],
+  )
 
   async function handleSave() {
     const trimmedName = name.trim()
@@ -166,22 +182,12 @@ function AssistantForm({ assistantId }: { assistantId: string }) {
               : '暂无可用模型：请先在「模型服务」中启用服务商并勾选模型'
           }
         >
-          <select
-            className="ui-select"
+          <Select
             value={modelId}
-            onChange={(event) => setModelId(event.target.value)}
-          >
-            <option value="">未选择</option>
-            {modelGroups.map((group) => (
-              <optgroup key={group.providerId} label={group.providerName}>
-                {group.models.map((model) => (
-                  <option key={model.ID} value={model.ID}>
-                    {model.DisplayName || model.RemoteID}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            onChange={setModelId}
+            placeholder="未选择"
+            groups={selectGroups}
+          />
         </Field>
 
         <Field

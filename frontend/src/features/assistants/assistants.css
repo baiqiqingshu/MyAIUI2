@@ -5,8 +5,34 @@
   flex-direction: column;
   height: 100%;
   min-width: 0;
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-subtle);
+}
+
+/* 品牌块：栏顶居中，底部带一层极淡的 accent 染区向下渐隐（导航点缀渐变位之一） */
+.as-rail__brand {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0 var(--space-2);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--accent) 7%, transparent),
+    transparent
+  );
+}
+
+/* 32px 对角渐变圆角方块 + 白色图标，全局唯一的品牌渐变位 */
+.as-rail__brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #fff;
+  box-shadow: 0 2px 8px -2px color-mix(in oklch, var(--accent) 45%, transparent);
 }
 
 .as-rail__list {
@@ -17,12 +43,25 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) 0;
+  padding: var(--space-2) 0 var(--space-3);
 }
 
 .as-rail__cell {
   position: relative;
   flex: none;
+}
+
+/* 选中指示条贴在栏左缘：cell 比 40px 头像宽出栏内左右各 12px，条向左探出 10px */
+.as-rail__cell.is-active::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
 }
 
 .as-rail__item {
@@ -32,32 +71,36 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border: none;
+  border-radius: var(--radius-full);
   background: transparent;
   font-size: 20px;
   line-height: 1;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .as-rail__item:hover {
   background: var(--bg-hover);
+  transform: translateY(-1px);
 }
 
+/* 选中态：pastel 圆形底，左侧指示条由 .as-rail__cell.is-active 提供 */
 .as-rail__item.is-active {
   background: var(--accent-soft);
-  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
 }
 
 .as-rail__emoji {
   pointer-events: none;
 }
 
-/* 悬停头像时出现「编辑助手」入口（新建/编辑/删除都在抽屉里）。 */
+/* 悬停头像时浮出的「编辑助手」小圆钮：白底 + hairline + 微阴影 */
 .as-rail__edit {
   position: absolute;
   right: -3px;
   bottom: -3px;
+  z-index: 1;
   display: none;
   align-items: center;
   justify-content: center;
@@ -69,7 +112,9 @@
   background: var(--bg-elevated);
   color: var(--text-secondary);
   box-shadow: var(--shadow-sm);
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition:
+    color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .as-rail__cell:hover .as-rail__edit,
@@ -87,8 +132,15 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--border);
+  padding: var(--space-2) 0 var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* 底部三个入口与头像同一尺寸档：圆角矩形，active 沿用 accent-soft 高亮 */
+.as-rail__foot .ui-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
 }
 
 /* 编辑抽屉 */
@@ -121,14 +173,82 @@
   gap: var(--space-3);
 }
 
+/* 温度滑块：自绘 4px 圆角 track + 16px 白底 accent 描边圆点，
+   WebKit 与 Firefox 两套伪元素分别对齐（二者不支持同一选择器合并书写） */
 .as-edit__range {
   flex: 1;
   min-width: 0;
-  accent-color: var(--accent);
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.as-edit__range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--bg-active);
+}
+
+.as-edit__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px; /* 16px 拇指居中到 4px track 上 */
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-full);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.as-edit__range:hover:not(:disabled)::-webkit-slider-thumb,
+.as-edit__range:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.as-edit__range::-moz-range-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--bg-active);
+}
+
+/* Firefox 专有：已拖过的 track 段填 accent（WebKit 无对应伪元素，保持整轨 --bg-active） */
+.as-edit__range::-moz-range-progress {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.as-edit__range::-moz-range-thumb {
+  box-sizing: border-box; /* moz 拇指宽高含边框，与 webkit 的 16px 外径对齐 */
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-full);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.as-edit__range:hover:not(:disabled)::-moz-range-thumb,
+.as-edit__range:focus-visible::-moz-range-thumb {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px var(--accent-ring);
 }
 
 .as-edit__range:disabled {
   opacity: 0.5;
+  cursor: default;
 }
 
 .as-edit__spacer {

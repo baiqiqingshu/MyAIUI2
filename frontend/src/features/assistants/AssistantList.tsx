@@ -1,4 +1,4 @@
-import { MessageSquare, Pencil, Plus, Server } from 'lucide-react'
+import { Bot, MessageSquare, Pencil, Plus, Server } from 'lucide-react'
 import clsx from 'clsx'
 import { useUiStore } from '../../app/uiStore'
 import { IconButton } from '../../components/ui'
@@ -15,11 +15,17 @@ export function AssistantRail() {
 
   return (
     <aside className="as-rail" aria-label="助手">
+      {/* 品牌块：全局仅有的两处渐变位之一（另一处是头像列的选中指示条），纯装饰 */}
+      <div className="as-rail__brand" aria-hidden="true">
+        <span className="as-rail__brand-mark">
+          <Bot size={18} />
+        </span>
+      </div>
       <div className="as-rail__list scroll-area">
         {assistants.map((assistant) => {
           const active = assistant.ID === activeAssistantId
           return (
-            <div key={assistant.ID} className="as-rail__cell">
+            <div key={assistant.ID} className={clsx('as-rail__cell', active && 'is-active')}>
               <button
                 type="button"
                 className={clsx('as-rail__item', active && 'is-active')}

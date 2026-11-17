@@ -7,22 +7,34 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
+  /* 消息列与输入卡片共用的居中读宽 */
+  --chat-col: 860px;
 }
 
-/* 铺满模式：消息列不再限宽（默认居中读宽由 .chat-list 的 max-width 控制） */
-.chat--full .chat-list {
+/* 铺满模式：消息列与输入卡片都不再限宽（默认居中读宽由 --chat-col 控制） */
+.chat--full .chat-list,
+.chat--full .chat-composer__card {
   max-width: none;
 }
 
-/* 顶栏：助手 + 话题 */
+/* 顶栏：助手 + 话题；磨砂玻璃底 + 细hairline分隔 */
 .chat-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-app);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--glass-bg-header);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   flex: 0 0 auto;
+}
+
+/* 不支持毛玻璃时回退实色，避免半透明底露馅 */
+@supports not (backdrop-filter: blur(1px)) {
+  .chat-header {
+    background: var(--bg-app);
+  }
 }
 
 .chat-header__emoji {
@@ -90,7 +102,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-width: 860px;
+  max-width: var(--chat-col);
   margin: 0 auto;
 }
 
@@ -131,14 +143,15 @@
   line-height: 1.75;
 }
 
-/* 用户气泡：accent-soft 底 + 细描边，右下角收小做出 IM 气泡指向感 */
+/* 用户气泡：pastel 浅紫蓝底（accent-soft 再掺白降饱和）+ 半透 accent 细边，
+   右下角收小做出 IM 气泡指向感 */
 .chat-msg--user .chat-msg__body {
   max-width: 78%;
   padding: 9px 13px;
-  border: 1px solid color-mix(in oklch, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 18%, transparent);
   border-radius: var(--radius-lg);
   border-bottom-right-radius: var(--radius-sm);
-  background: var(--accent-soft);
+  background: color-mix(in oklch, var(--accent-soft) 72%, var(--bg-panel));
   color: var(--text-primary);
 }
 
@@ -181,7 +194,7 @@
   display: flex;
   gap: var(--space-1);
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 
 .chat-msg:hover .chat-msg__actions,
@@ -195,11 +208,11 @@
   gap: 4px;
   padding: 2px 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-tertiary);
   font-size: 12px;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
 .chat-action:hover:not(:disabled) {
@@ -219,7 +232,7 @@
   gap: 2px;
   margin-right: var(--space-2);
   padding-right: var(--space-2);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border-subtle);
 }
 
 .chat-msg__siblings-count {
@@ -265,7 +278,7 @@
   margin-left: auto;
 }
 
-/* 批量管理操作条：贴在输入区上方浮现（elevated + 描边 + 阴影） */
+/* 批量管理操作条：贴在输入区上方浮现（磨砂玻璃浮层 + 细hairline描边 + 弥散阴影） */
 .chat-select-bar {
   display: flex;
   align-items: center;
@@ -273,10 +286,18 @@
   gap: var(--space-3);
   margin: 0 var(--space-5) var(--space-2);
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-md);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .chat-select-bar {
+    background: var(--bg-elevated);
+  }
 }
 
 .chat-select-bar__count {
@@ -370,16 +391,32 @@
   opacity: 0.8;
 }
 
-/* 输入区 */
+/* 输入区：外层只是留白容器（透出冷灰画布），实际控件全部包进一张圆角卡片 */
 .chat-composer {
   position: relative; /* 上边沿拖动条以此为定位基准 */
   flex: 0 0 auto;
-  border-top: 1px solid var(--border);
-  padding: var(--space-3) var(--space-5) var(--space-4);
+  padding: var(--space-2) var(--space-5) var(--space-4);
+}
+
+/* 输入卡片：工具行 + textarea + 底行合为一张白卡；聚焦时整卡 accent 描边 + 光环 */
+.chat-composer__card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  background: var(--bg-app);
+  gap: var(--space-1);
+  width: 100%;
+  max-width: var(--chat-col);
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.chat-composer__card:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm), 0 0 0 3px var(--accent-ring);
 }
 
 /* 上边沿拖动条：调整输入框高度。绝对定位不占布局，工具栏位置不受影响。 */
@@ -404,7 +441,7 @@
   border-radius: var(--radius-full);
   background: var(--text-tertiary);
   opacity: 0.3;
-  transition: opacity 0.15s ease, background-color 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .chat-composer__resize:hover .chat-composer__resize-grip,
@@ -426,11 +463,25 @@
   max-width: 320px;
 }
 
-/* 高度改由上方拖动条控制，关掉原生右下角 resize 手柄（选择器需压过 .ui-textarea）。 */
+/* 高度改由上方拖动条控制，关掉原生右下角 resize 手柄（选择器需压过 .ui-textarea）。
+   输入框在卡片内无边框无底色，聚焦光环统一由 .chat-composer__card:focus-within 呈现。 */
 .chat-composer .chat-composer__input {
   width: 100%;
   resize: none;
   min-height: 68px;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+/* 再压一层 :focus 态，盖掉 .ui-textarea:focus 的 accent 边与光环 */
+.chat-composer .chat-composer__input:focus,
+.chat-composer .chat-composer__input:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
 }
 
 .chat-composer__foot {
@@ -446,7 +497,7 @@
   line-height: 1.5;
 }
 
-/* 无模型提示条：warning-soft 底 + 半透明描边，深色下不刺眼 */
+/* 无模型提示条：warning-soft 底 + 半透明描边 + 浮层阴影，深色下不刺眼 */
 .chat-notice {
   display: flex;
   align-items: center;
@@ -457,6 +508,7 @@
   border: 1px solid color-mix(in oklch, var(--warning) 45%, transparent);
   border-radius: var(--radius-md);
   background: var(--warning-soft);
+  box-shadow: var(--shadow-md);
   color: var(--text-primary);
   font-size: 13px;
 }
@@ -478,7 +530,8 @@
   background: var(--bg-panel);
   color: var(--text-secondary);
   font-size: 12px;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .search-toggle:hover {
@@ -499,6 +552,7 @@
   min-width: 0;
 }
 
+/* 触发钮与 ui-input 观感一致：hairline 边、radius-md、focus accent 环 */
 .model-select__trigger {
   display: inline-flex;
   align-items: center;
@@ -511,7 +565,8 @@
   background: var(--bg-input);
   color: var(--text-primary);
   font-size: 12px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
 }
 
 .model-select__trigger:hover:not(:disabled) {
@@ -545,14 +600,15 @@
 .model-select__chevron {
   flex: none;
   color: var(--text-tertiary);
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
 .model-select__trigger.is-open .model-select__chevron {
   transform: rotate(180deg);
 }
 
-/* 弹层在触发按钮上方展开：输入区贴近窗口底边，向下会被裁掉 */
+/* 弹层在触发按钮上方展开：输入区贴近窗口底边，向下会被裁掉。
+   磨砂玻璃底 + 细hairline描边 + 弹层级弥散阴影。 */
 .model-select__pop {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -562,11 +618,19 @@
   max-width: 360px;
   max-height: 320px;
   padding: var(--space-1);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-lg);
   z-index: 20;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .model-select__pop {
+    background: var(--bg-elevated);
+  }
 }
 
 .model-select__group + .model-select__group {
@@ -643,14 +707,17 @@
   display: block;
   max-width: 560px;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .search-card:hover {
   border-color: var(--accent);
+  box-shadow: var(--shadow-md);
 }
 
 .search-card__head {
@@ -710,7 +777,7 @@
   border-radius: var(--radius-full);
   /* assistant 用 border 色系 */
   background: var(--border-strong);
-  transition: transform 0.12s ease, background 0.12s ease;
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 
 /* user 用半透明 accent */
@@ -725,6 +792,7 @@
   transform: scale(1.4);
 }
 
+/* 悬停预览浮层：磨砂玻璃 + radius-md + 弥散阴影 */
 .chat-dots__preview {
   position: absolute;
   right: calc(100% + 10px);
@@ -732,9 +800,11 @@
   transform: translateY(-50%);
   width: 220px;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-md);
   color: var(--text-secondary);
   font-size: 12px;
@@ -744,8 +814,14 @@
   word-break: break-word;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s ease;
+  transition: opacity var(--dur-fast) var(--ease-out);
   z-index: 5;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .chat-dots__preview {
+    background: var(--bg-elevated);
+  }
 }
 
 .chat-dots__dot:hover .chat-dots__preview,

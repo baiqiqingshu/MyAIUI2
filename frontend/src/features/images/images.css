@@ -8,13 +8,20 @@
   display: block;
   max-width: 100%;
   max-height: 420px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   background: var(--bg-code);
   object-fit: contain;
 }
 
+/* 加载中/失败占位：与正文混排的内联状态条，可带「重试」小按钮 */
 .image-result--empty {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
   font-size: 13px;
   color: var(--text-tertiary);
 }

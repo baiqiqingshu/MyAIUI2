@@ -1,4 +1,5 @@
-/* 模型服务页与服务商/模型列表样式（前缀 providers- / provider- / model-） */
+/* 模型服务页与服务商/模型列表样式（前缀 providers- / provider- / model-）
+   视觉语言：冷灰画布 + 白色大圆角卡片 + 蓝紫 accent + 柔和弥散阴影 + 悬停上浮。 */
 
 /* 模型服务是主区 tab：.app-shell 是三列网格，此时第二列（话题栏）不渲染，
    主区需横跨第 2~3 列（global.css 不可改，规则写在这里）。 */
@@ -13,6 +14,7 @@
   flex-direction: column;
 }
 
+/* 页头在滚动容器之外天然常显（无需 sticky）；磨砂玻璃底，不支持时回退实色画布 */
 .providers-page__head {
   flex: none;
   display: flex;
@@ -21,6 +23,18 @@
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .providers-page__head {
+    background: var(
+      --glass-bg-header,
+      color-mix(in oklch, var(--bg-app) 70%, transparent)
+    );
+    backdrop-filter: var(--glass-blur, blur(16px) saturate(1.4));
+    -webkit-backdrop-filter: var(--glass-blur, blur(16px) saturate(1.4));
+  }
 }
 
 .providers-page__title {
@@ -45,7 +59,169 @@
   gap: var(--space-3);
 }
 
-/* 内置中转卡片：复用 provider-card 结构，图标位用圆形底 */
+/* ---------------------------------------------------------------- 白卡体系
+   服务商卡 / 内置中转卡 / 代理卡 / 编辑表单共用：
+   radius-lg + 几乎不可见的 hairline + 柔和阴影分层，hover 上浮。
+   注意：卡片不用 overflow:hidden（会裁掉行内下拉里弹层），
+   内部区块的圆角各自处理（--toggle head 顶角、.model-list 底角）。 */
+
+.provider-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-md);
+  transition:
+    transform var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.provider-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(
+    --shadow-lift,
+    0 4px 8px -2px rgb(0 0 0 / 0.05),
+    0 14px 32px -8px rgb(0 0 0 / 0.12)
+  );
+}
+
+/* 展开态：边框染一点 accent，标记「当前打开」的卡片 */
+.provider-card.is-expanded {
+  border-color: color-mix(in oklch, var(--accent) 28%, transparent);
+}
+
+/* 去掉了 overflow:hidden 后，行内下拉弹层会探出卡片边界；
+   卡内有焦点（如下拉打开、控件使用中）时抬升层级，避免被后一张卡片的 hover 上浮盖住 */
+.provider-card:focus-within {
+  position: relative;
+  z-index: 2;
+}
+
+.provider-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* 可点击展开的卡片头（role=button）：整行切换 ModelList 显隐 */
+.provider-card__head--toggle {
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  transition: background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* 收起态 head 就是卡片可见底部，底角也要圆角以兜住 hover 底色/聚焦环 */
+.provider-card:not(.is-expanded) .provider-card__head--toggle {
+  border-radius: var(--radius-lg);
+}
+
+.provider-card__head--toggle:hover {
+  background: var(--bg-hover);
+}
+
+.provider-card__head--toggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* head 最左的展开指示：单图标旋转过渡（收起 → 朝下） */
+.provider-card__chevron {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  transition:
+    background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.provider-card__chevron svg {
+  transition: transform var(--dur-med, 0.18s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.provider-card__chevron.is-open svg {
+  transform: rotate(90deg);
+}
+
+.provider-card__head--toggle:hover .provider-card__chevron {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.provider-card__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.provider-card__name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.provider-card__url {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* meta 并入名称块第三行：模型数 / 最近同步 / 密钥已配置；
+   内置中转卡仍在卡片正文用（.relay-card__meta 补回外边距） */
+.provider-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: 1px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* head 右侧紧凑控件组：测试/编辑/删除 IconButton + 启用 Toggle（整组 stopPropagation） */
+.provider-card__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.provider-card__controls .ui-toggle {
+  margin-left: var(--space-2);
+}
+
+/* 删除按钮 hover 走 danger 浅底（提级压过 .ui-icon-btn 的通用 hover） */
+.ui-icon-btn.provider-card__danger-btn:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* 错误行：pastel 横幅，margin 内缩保证卡片底角不被顶出 */
+.provider-card__error {
+  margin: 0 var(--space-4) var(--space-3);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  font-size: 12px;
+  color: var(--danger);
+  word-break: break-word;
+}
+
+/* 内置中转卡片：复用 provider-card 结构，图标位用圆角浅色块 */
 .relay-card__icon {
   flex: none;
   width: 28px;
@@ -58,8 +234,11 @@
   color: var(--accent-text);
 }
 
+/* relay 的 meta 在 head 之外的正文区，补回与 head 对齐的横向留白 */
 .relay-card__meta {
-  align-items: center;
+  padding: 0 var(--space-4) var(--space-3);
+  font-size: 12px;
+  color: var(--text-secondary);
   row-gap: var(--space-1);
 }
 
@@ -71,7 +250,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: 0 var(--space-3) var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
   font-size: 12px;
 }
 
@@ -90,7 +269,7 @@
   gap: var(--space-2);
 }
 
-/* Relay 状态徽标：运行=success、异常=danger、未启用=中性灰 */
+/* Relay 状态徽标：pill 形 pastel 底，运行=success、异常=danger、未启用=中性灰 */
 .relay-status {
   display: inline-flex;
   align-items: center;
@@ -100,6 +279,7 @@
   font-size: 11px;
   font-weight: 500;
   line-height: 1.6;
+  white-space: nowrap;
 }
 
 .relay-status__dot {
@@ -153,77 +333,19 @@
   font-size: 13px;
   color: var(--text-tertiary);
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
-.provider-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-panel);
-  overflow: hidden;
-  transition: border-color 0.15s ease;
-}
-
-.provider-card:hover {
-  border-color: var(--border-strong);
-}
-
-.provider-card__head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-}
-
-.provider-card__title {
-  flex: 1;
-  min-width: 0;
-}
-
-.provider-card__name {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-weight: 600;
-}
-
-.provider-card__url {
-  font-family: var(--font-mono), monospace;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  word-break: break-all;
-}
-
-.provider-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  padding: 0 var(--space-3) var(--space-2);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.provider-card__error {
-  margin: 0 var(--space-3) var(--space-2);
-  font-size: 12px;
-  color: var(--danger);
-  word-break: break-word;
-}
-
-.provider-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: 0 var(--space-3) var(--space-3);
-}
-
+/* pill 标签：低饱和 pastel 底 */
 .provider-tag {
-  padding: 1px 6px;
+  padding: 1px 8px;
   border-radius: var(--radius-full);
   background: var(--bg-hover);
   color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .provider-tag--off {
@@ -231,10 +353,16 @@
   color: var(--danger);
 }
 
+/* 编辑表单也坐进白卡，与列表卡同语言 */
 .provider-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-md);
 }
 
 .provider-form__head {
@@ -260,19 +388,24 @@
   margin-top: var(--space-2);
 }
 
+/* ---------------------------------------------------------------- 模型列表（展开区）
+   白卡内嵌冷灰抽屉：bg-app inset + 顶部分隔线 + 底部圆角补齐卡片。 */
+
 .model-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3);
-  border-top: 1px solid var(--border);
-  background: var(--bg-sidebar);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .model-list__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
@@ -285,7 +418,7 @@
 /* 检索框：夹在计数与操作按钮之间，宽度受控件不挤出行 */
 .model-list__search {
   flex: 1;
-  min-width: 0;
+  min-width: 120px;
   max-width: 240px;
 }
 
@@ -293,28 +426,58 @@
   width: 100%;
 }
 
-/* 批量启停条：全选/清空 + 启用/停用所选 */
+/* 批量条：白底胶囊分组（全选/启停 一组，删除用分隔线另立 danger 区） */
 .model-list__batch {
-  display: flex;
+  display: inline-flex;
+  align-self: flex-start;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.model-list__batch-divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--border);
+}
+
+/* 删除所选：ghost 形态但语义 danger（提级压过 .ui-btn 基础色） */
+.ui-btn.model-list__batch-delete {
+  color: var(--danger);
+}
+
+.ui-btn.model-list__batch-delete:hover:not(:disabled) {
+  background: var(--danger-soft);
 }
 
 .model-list__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
+/* 手动添加行：白底小卡，与灰底抽屉拉开层次 */
 .model-list__add {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 96px auto auto;
   gap: var(--space-2);
   align-items: center;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
 }
 
 .model-list__empty {
+  padding: var(--space-2) 0;
   font-size: 12px;
   color: var(--text-tertiary);
 }
@@ -328,20 +491,25 @@
   list-style: none;
 }
 
+/* 模型行：白底小卡，选中态 accent 淡边 + accent-soft 浅底 */
 .model-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto 96px auto 28px;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
   background: var(--bg-panel);
-  transition: border-color 0.12s ease;
+  transition:
+    border-color var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    background var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--dur-fast, 0.12s) var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .model-row:hover {
   border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 /* 行首多选 checkbox：始终显示，勾上后行描边染 accent */
@@ -352,7 +520,13 @@
 }
 
 .model-row.is-checked {
-  border-color: color-mix(in oklch, var(--accent) 50%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+}
+
+.model-row.is-checked:hover {
+  border-color: color-mix(in oklch, var(--accent) 60%, transparent);
+  box-shadow: none;
 }
 
 .model-row__main {
@@ -381,11 +555,14 @@
 }
 
 .model-tag {
-  padding: 1px 6px;
+  padding: 1px 8px;
   border-radius: var(--radius-full);
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .model-tag--warn {
@@ -398,13 +575,13 @@
 }
 
 /* 同步后勾选面板：新同步的模型默认未启用，需用户显式勾选并启用。
-   accent 描边提示这是需要处理的临时面板。 */
+   浅 accent 底提示这是需要处理的临时面板。 */
 .model-sync-panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  border: 1px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 32%, transparent);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
 }

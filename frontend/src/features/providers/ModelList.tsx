@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { Eraser, Plus, Trash } from 'lucide-react'
-import { Button, IconButton, Input, Select, Toggle } from '../../components/ui'
+import { Button, ConfirmDialog, IconButton, Input, Select, Toggle } from '../../components/ui'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
 import type { ModelDTO } from '../../domain/dto'
@@ -38,7 +38,8 @@ export function ModelList({ providerId }: { providerId: string }) {
   // 检索与批量勾选：过滤只影响显示，不丢勾选（局部状态，不进 store）。
   const [query, setQuery] = useState('')
   const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(new Set())
-  const [batchAction, setBatchAction] = useState<'' | 'enable' | 'disable'>('')
+  const [batchAction, setBatchAction] = useState<'' | 'enable' | 'disable' | 'delete'>('')
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
 
   // 「已失联」模型数：> 0 时「清理失效模型」可点。
   const missingCount = useMemo(() => models.filter((m) => m.MissingRemote).length, [models])
@@ -116,6 +117,32 @@ export function ModelList({ providerId }: { providerId: string }) {
         showToast(`已${verb} ${ids.length - failed} 个模型，${failed} 个失败`, 'error')
       } else {
         showToast(`已${verb} ${ids.length} 个模型`, 'success')
+      }
+    } finally {
+      setBatchAction('')
+    }
+  }
+
+  // 批量删除：全部尝试后报告成功/失败数；成功的移出勾选集，失败的保留便于重试。
+  // 与单删不同，批量删除有 ConfirmDialog 确认（误删手动模型不可恢复）。
+  async function handleBatchDelete() {
+    const ids = checkedModelIds
+    if (ids.length === 0) return
+    setBatchAction('delete')
+    try {
+      const results = await Promise.allSettled(ids.map((id) => appApi.DeleteModel(id)))
+      const deletedIds = ids.filter((_, index) => results[index].status === 'fulfilled')
+      const failed = ids.length - deletedIds.length
+      await refreshModels()
+      setCheckedIds((prev) => {
+        const next = new Set(prev)
+        for (const id of deletedIds) next.delete(id)
+        return next
+      })
+      if (failed > 0) {
+        showToast(`已删除 ${deletedIds.length} 个模型，${failed} 个失败`, 'error')
+      } else {
+        showToast(`已删除 ${deletedIds.length} 个模型`, 'success')
       }
     } finally {
       setBatchAction('')
@@ -277,7 +304,7 @@ export function ModelList({ providerId }: { providerId: string }) {
         </div>
       </div>
 
-      {/* 批量启停条：「全选」作用于当前筛选结果；过滤不丢勾选 */}
+      {/* 批量条：「全选」作用于当前筛选结果；过滤不丢勾选。删除与启停用分隔线分组。 */}
       <div className="model-list__batch">
         <Button
           size="sm"
@@ -304,6 +331,18 @@ export function ModelList({ providerId }: { providerId: string }) {
           disabled={checkedModelIds.length === 0 || batchAction !== ''}
         >
           停用所选
+        </Button>
+        <span className="model-list__batch-divider" aria-hidden="true" />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="model-list__batch-delete"
+          onClick={() => setBatchDeleteOpen(true)}
+          loading={batchAction === 'delete'}
+          disabled={checkedModelIds.length === 0 || batchAction !== ''}
+        >
+          <Trash size={13} />
+          删除所选{checkedModelIds.length > 0 ? `（${checkedModelIds.length}）` : ''}
         </Button>
       </div>
 
@@ -422,6 +461,17 @@ export function ModelList({ providerId }: { providerId: string }) {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        title="批量删除模型"
+        description={`确定删除选中的 ${checkedModelIds.length} 个模型？手动添加的模型删除后不可恢复，远端模型可通过「同步模型」找回。`}
+        onConfirm={() => {
+          setBatchDeleteOpen(false)
+          void handleBatchDelete()
+        }}
+        onCancel={() => setBatchDeleteOpen(false)}
+      />
     </div>
   )
 }

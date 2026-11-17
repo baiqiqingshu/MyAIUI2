@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronDown, ChevronRight, Network, Plus, Trash } from 'lucide-react'
+import { ChevronRight, Network, Pencil, Plus, Trash, Zap } from 'lucide-react'
 import './providers.css'
-import { Button, ConfirmDialog, IconButton, Toggle } from '../../components/ui'
+import { Button, ConfirmDialog, IconButton, Spinner, Toggle } from '../../components/ui'
 import { ProviderIcon } from '../../components/icons/ProviderIcon'
 import { appApi } from '../../bridge/appApi'
 import { useUiStore } from '../../app/uiStore'
@@ -137,9 +137,35 @@ export function ProvidersPage() {
             <div className="provider-list">
               {providers.map((provider) => {
                 const expanded = expandedId === provider.ID
+                const toggleExpand = () => setExpandedId(expanded ? '' : provider.ID)
                 return (
-                  <section key={provider.ID} className="provider-card">
-                    <header className="provider-card__head">
+                  <section
+                    key={provider.ID}
+                    className={clsx('provider-card', expanded && 'is-expanded')}
+                  >
+                    {/* 整行可点切换展开；chevron 在最左，meta 并入名称块第三行。
+                        右侧控件统一 stopPropagation，不触发展开。 */}
+                    <header
+                      className="provider-card__head provider-card__head--toggle"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expanded}
+                      title={expanded ? '收起模型列表' : '展开模型列表'}
+                      onClick={toggleExpand}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          toggleExpand()
+                        }
+                      }}
+                    >
+                      <span
+                        className={clsx('provider-card__chevron', expanded && 'is-open')}
+                        aria-hidden="true"
+                      >
+                        <ChevronRight size={15} />
+                      </span>
                       <ProviderIcon name={provider.Name} size={28} />
                       <div className="provider-card__title">
                         <div className="provider-card__name">
@@ -151,56 +177,58 @@ export function ProvidersPage() {
                         <div className="provider-card__url">
                           {provider.BaseURL || '未设置 BaseURL'}
                         </div>
+                        <div className="provider-card__meta">
+                          <span>模型 {modelCounts.get(provider.ID) ?? provider.ModelCount} 个</span>
+                          {provider.LastSyncAt > 0 ? (
+                            <span>
+                              最近同步{' '}
+                              {new Date(provider.LastSyncAt * 1000).toLocaleString('zh-CN', {
+                                hour12: false,
+                              })}
+                            </span>
+                          ) : null}
+                          {provider.HasAPIKey ? <span>密钥已配置</span> : null}
+                        </div>
                       </div>
-                      <Toggle
-                        checked={provider.Enabled}
-                        onChange={(value) => handleToggleEnabled(provider, value)}
-                        label="启用"
-                        disabled={busyId === provider.ID}
-                      />
-                      <IconButton
-                        title={expanded ? '收起模型列表' : '展开模型列表'}
-                        onClick={() => setExpandedId(expanded ? '' : provider.ID)}
+                      <div
+                        className="provider-card__controls"
+                        onClick={(event) => event.stopPropagation()}
                       >
-                        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                      </IconButton>
+                        <IconButton
+                          title="测试连接"
+                          disabled={testingId === provider.ID}
+                          onClick={() => void handleTest(provider)}
+                        >
+                          {testingId === provider.ID ? (
+                            <Spinner size={14} />
+                          ) : (
+                            <Zap size={15} />
+                          )}
+                        </IconButton>
+                        <IconButton title="编辑服务商" onClick={() => setEditing(provider)}>
+                          <Pencil size={15} />
+                        </IconButton>
+                        <IconButton
+                          title="删除服务商"
+                          className="provider-card__danger-btn"
+                          onClick={() => setDeleteTarget(provider)}
+                        >
+                          <Trash size={15} />
+                        </IconButton>
+                        <Toggle
+                          checked={provider.Enabled}
+                          onChange={(value) => handleToggleEnabled(provider, value)}
+                          label="启用"
+                          disabled={busyId === provider.ID}
+                        />
+                      </div>
                     </header>
-
-                    <div className="provider-card__meta">
-                      <span>模型 {modelCounts.get(provider.ID) ?? provider.ModelCount} 个</span>
-                      {provider.LastSyncAt > 0 ? (
-                        <span>
-                          最近同步{' '}
-                          {new Date(provider.LastSyncAt * 1000).toLocaleString('zh-CN', {
-                            hour12: false,
-                          })}
-                        </span>
-                      ) : null}
-                      {provider.HasAPIKey ? <span>密钥已配置</span> : null}
-                    </div>
 
                     {provider.LastSyncError ? (
                       <div className="provider-card__error">
                         上次同步失败：{provider.LastSyncError}
                       </div>
                     ) : null}
-
-                    <div className="provider-card__actions">
-                      <Button
-                        size="sm"
-                        onClick={() => handleTest(provider)}
-                        loading={testingId === provider.ID}
-                      >
-                        测试连接
-                      </Button>
-                      <Button size="sm" onClick={() => setEditing(provider)}>
-                        编辑
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(provider)}>
-                        <Trash size={13} />
-                        删除
-                      </Button>
-                    </div>
 
                     {expanded ? <ModelList providerId={provider.ID} /> : null}
                   </section>

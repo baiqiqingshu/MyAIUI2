@@ -188,57 +188,60 @@ export function TextComposer({ value, onChange, onSend, disabled }: TextComposer
       >
         <span className="chat-composer__resize-grip" aria-hidden="true" />
       </div>
-      <div className="chat-composer__toolbar">
-        <ModelSelect
-          models={usableModels}
-          providers={providers}
-          value={currentModelId}
-          onChange={onModelChange}
-          disabled={generating || usableModels.length === 0 || !assistant}
-          placeholder={usableModels.length === 0 ? '暂无可用模型' : '选择模型'}
+      {/* 工具行 + 输入框 + 底行合为一张圆角卡片；拖动条留在卡片外（.chat-composer 顶部） */}
+      <div className="chat-composer__card">
+        <div className="chat-composer__toolbar">
+          <ModelSelect
+            models={usableModels}
+            providers={providers}
+            value={currentModelId}
+            onChange={onModelChange}
+            disabled={generating || usableModels.length === 0 || !assistant}
+            placeholder={usableModels.length === 0 ? '暂无可用模型' : '选择模型'}
+          />
+          <button
+            type="button"
+            className={clsx('search-toggle', searchEnabled && 'is-on')}
+            title="开启后，向模型请求中写入联网搜索参数（由模型服务决定是否生效）"
+            aria-pressed={searchEnabled}
+            onClick={() => setSearchEnabled(!searchEnabled)}
+          >
+            <Globe size={13} />
+            联网
+          </button>
+        </div>
+        <Textarea
+          value={value}
+          onChange={onChange}
+          rows={3}
+          className="chat-composer__input"
+          style={inputHeight === null ? undefined : { height: `${inputHeight}px` }}
+          placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey) return
+            if (event.nativeEvent.isComposing) return
+            event.preventDefault()
+            if (canSend) onSend()
+          }}
         />
-        <button
-          type="button"
-          className={clsx('search-toggle', searchEnabled && 'is-on')}
-          title="开启后，向模型请求中写入联网搜索参数（由模型服务决定是否生效）"
-          aria-pressed={searchEnabled}
-          onClick={() => setSearchEnabled(!searchEnabled)}
-        >
-          <Globe size={13} />
-          联网
-        </button>
-      </div>
-      <Textarea
-        value={value}
-        onChange={onChange}
-        rows={3}
-        className="chat-composer__input"
-        style={inputHeight === null ? undefined : { height: `${inputHeight}px` }}
-        placeholder="输入消息，Enter 发送，Shift+Enter 换行"
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter' || event.shiftKey) return
-          if (event.nativeEvent.isComposing) return
-          event.preventDefault()
-          if (canSend) onSend()
-        }}
-      />
-      <div className="chat-composer__foot">
-        <span className="chat-composer__hint">
-          {searchEnabled
-            ? '已开启联网：将向模型请求写入联网搜索参数（是否生效由模型服务决定） · 仅支持纯文本，图片/文件粘贴会被拒绝'
-            : '仅支持纯文本，图片/文件粘贴会被拒绝 · Enter 发送 / Shift+Enter 换行'}
-        </span>
-        {generating ? (
-          <Button variant="secondary" onClick={stop} title="停止生成">
-            <Square size={13} />
-            停止
-          </Button>
-        ) : (
-          <Button variant="primary" onClick={onSend} disabled={!canSend} title="发送">
-            <Send size={14} />
-            发送
-          </Button>
-        )}
+        <div className="chat-composer__foot">
+          <span className="chat-composer__hint">
+            {searchEnabled
+              ? '已开启联网：将向模型请求写入联网搜索参数（是否生效由模型服务决定） · 仅支持纯文本，图片/文件粘贴会被拒绝'
+              : '仅支持纯文本，图片/文件粘贴会被拒绝 · Enter 发送 / Shift+Enter 换行'}
+          </span>
+          {generating ? (
+            <Button variant="secondary" onClick={stop} title="停止生成">
+              <Square size={13} />
+              停止
+            </Button>
+          ) : (
+            <Button variant="primary" onClick={onSend} disabled={!canSend} title="发送">
+              <Send size={14} />
+              发送
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
