@@ -250,7 +250,7 @@
   padding: 4px;
   overflow: auto;
   overscroll-behavior: contain;
-  background: var(--glass-bg);
+  background: var(--bg-elevated);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);

@@ -7,7 +7,7 @@
 | 文件 | 作用 |
 | --- | --- |
 | `frontend/vercel.json` | 以 `frontend/` 为项目根时的 Vercel 配置：`pnpm install` → `pnpm build:web` → 输出 `dist-web`；`framework: null` 按纯静态站托管。`ignoreCommand` 使与 `frontend/` 无关的提交（纯 Go 改动等）不触发部署 |
-| `frontend/api/proxy.ts` | 通用 HTTP 代理 Edge Function（`/api/proxy?url=<目标>`，Vercel 自动构建 `api/` 目录）。前端外联请求经它同源中转，不受 provider CORS 策略限制；按主机名拦内网地址，可用环境变量 `PROXY_ALLOWED_HOSTS`（逗号分隔域名后缀）配置白名单 |
+| `frontend/api/proxy.ts` | 通用 HTTP 代理 Edge Function（`/api/proxy?url=<目标>`，Vercel 自动构建 `api/` 目录）。前端外联请求可经它同源中转（「模型服务 → 部署端中转」开关默认关，开启后生效），不受 provider CORS 策略限制；按主机名拦内网地址，可用环境变量 `PROXY_ALLOWED_HOSTS`（逗号分隔域名后缀）配置白名单 |
 | `frontend/package.json` 的 `engines` | 声明 `node >=22.12.0`（Vite 8 要求），供 Vercel 选择 Node 版本 |
 
 ## 一次性设置
@@ -31,5 +31,5 @@ pnpm --dir frontend build:web     # → frontend/dist-web/index.html
 
 ## 注意
 
-- Web 版密钥明文存浏览器 localStorage、模型请求经 `/api/proxy` 中转 provider——与单文件版同一套取舍，部署到公网只是换了访问方式，安全性不变；但 URL 默认公网可达，建议在 Vercel 项目设置里按需开启 Deployment Protection（也可避免代理被第三方当公共转发滥用）。
+- Web 版密钥明文存浏览器 localStorage、模型请求可经 `/api/proxy` 中转 provider（开关默认关）——与单文件版同一套取舍，部署到公网只是换了访问方式，安全性不变；但 URL 默认公网可达，建议在 Vercel 项目设置里按需开启 Deployment Protection（也可避免代理被第三方当公共转发滥用）。
 - 部署产物是「单个 index.html 静态站 + 一个 Edge 代理函数」；任何把数据存到远端的需求都不在本方案范围内。

@@ -27,16 +27,16 @@ export function probeWebProxy(): Promise<boolean> {
 }
 
 // 「部署端中转」全局开关，存 db settings blob（对齐 search/proxy 设置的存法）；
-// 缺省为开——部署到 Vercel 即免 CORS，双击单文件因探测不到代理自动直连。
+// 缺省为关——默认浏览器直连 provider，部署到 Vercel 后可手动开启以免 CORS。
 const SETTING_KEY_WEB_PROXY = 'web_egress_proxy'
 
 export function getWebProxyEnabled(): boolean {
   const raw = loadDb().settings[SETTING_KEY_WEB_PROXY]
-  if (!raw) return true
+  if (!raw) return false
   try {
-    return (JSON.parse(raw) as { Enabled?: boolean }).Enabled !== false
+    return (JSON.parse(raw) as { Enabled?: boolean }).Enabled === true
   } catch {
-    return true
+    return false
   }
 }
 

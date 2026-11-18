@@ -50,7 +50,7 @@ python temp/fake_provider.py 8791     # 然后在应用里把模型服务地址�
 pnpm --dir frontend build:web    # → frontend/dist-web/index.html（单文件 ~6.4MB）
 ```
 
-桌面端构建不受影响；运行时按 `window.go` 是否存在自动在 Wails 绑定与浏览器实现间切换。密钥明文存 localStorage；部署到 Vercel 时模型请求经 `/api/proxy` 同源中转（无 CORS 约束），其他环境退回浏览器直连（受 CORS 约束），详见 [docs/SINGLE_HTML_WEB.md](docs/SINGLE_HTML_WEB.md)。
+桌面端构建不受影响；运行时按 `window.go` 是否存在自动在 Wails 绑定与浏览器实现间切换。密钥明文存 localStorage；部署到 Vercel 时可在「模型服务 → 部署端中转」开启 `/api/proxy` 同源中转（默认关，开启后无 CORS 约束），未开启或其他环境为浏览器直连（受 CORS 约束），详见 [docs/SINGLE_HTML_WEB.md](docs/SINGLE_HTML_WEB.md)。
 
 仓库已带 `frontend/vercel.json`：推到 GitHub 后在 Vercel 以 `frontend` 为根导入项目（导入页会同时探测出 Go 条目，忽略即可），即可实现 push 到 `main` 自动构建并部署该单 HTML 站点（其他分支/PR 自动出预览），步骤见 [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)。
 
