@@ -30,7 +30,7 @@ function cspWeb(): Plugin {
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // 把产物内联回 index.html：<script src> → 内联代码、<link stylesheet> → <style>，
-// 已内联的 js/css 从 bundle 删除，dist-web/ 最终只剩一个 index.html。
+// 已内联的 js/css 从 bundle 删除，dist-web/ 只剩 index.html（+ public/ 拷入的 favicon.svg）。
 // 配合 inlineDynamicImports / cssCodeSplit:false / assetsInlineLimit 全内联，
 // 正常只会有一个入口 chunk 和最多一个 css asset。
 function singleFile(): Plugin {

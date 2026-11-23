@@ -1,6 +1,6 @@
 # 单 HTML Web 版实施方案
 
-状态：已完成（原型）。构建命令 `pnpm --dir frontend build:web` → `frontend/dist-web/index.html`（单文件 ~6.4MB，含全部依赖），双击或任意静态服务打开即可使用。
+状态：已完成（原型）。构建命令 `pnpm --dir frontend build:web` → `frontend/dist-web/`（`index.html` 单文件 ~6.4MB 含全部依赖 + `favicon.svg` 仅作浏览器 tab 图标），双击 index.html 或任意静态服务打开即可使用。
 目标：在不影响现有 Wails 桌面端的前提下，新增一条构建管线，产出**单个 .html 文件**，双击即可在浏览器里使用同一套 AI 对话工具；全部数据（助手/话题/消息/Provider/密钥/设置）存浏览器 localStorage。
 
 ## 1. 运行时架构
